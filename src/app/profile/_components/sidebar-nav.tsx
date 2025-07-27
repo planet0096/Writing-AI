@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import Link from "next/link"
@@ -11,6 +12,7 @@ interface SidebarNavProps extends React.HTMLAttributes<HTMLElement> {
   items: {
     href: string
     title: string
+    icon?: React.ReactNode;
   }[]
 }
 
@@ -34,9 +36,10 @@ export function SidebarNav({ className, items, ...props }: SidebarNavProps) {
             pathname === item.href
               ? "bg-muted hover:bg-muted"
               : "hover:bg-transparent hover:underline",
-            "justify-start"
+            "justify-start gap-2"
           )}
         >
+          {item.icon}
           {item.title}
         </Link>
       ))}
