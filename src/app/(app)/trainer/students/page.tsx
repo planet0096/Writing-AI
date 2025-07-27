@@ -14,6 +14,7 @@ import { User, MoreHorizontal, ShieldOff, ShieldCheck, UserX, PlusCircle } from 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
 
 interface Student {
   id: string;
@@ -135,108 +136,112 @@ export default function StudentManagementPage() {
   );
 
   return (
-    <div className="container mx-auto px-4 py-12">
+    <div className="p-4 sm:p-6 lg:p-8">
       <Card>
         <CardHeader>
           <CardTitle>Student Management</CardTitle>
           <CardDescription>View your assigned students and manage their accounts.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Credits</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <>{renderSkeleton()}{renderSkeleton()}</>
-              ) : students.length > 0 ? (
-                students.map((student) => (
-                  <TableRow key={student.id} className={student.accountStatus === 'blocked' ? 'bg-muted/50' : ''}>
-                    <TableCell className="font-medium flex items-center gap-2">
-                        <User className="text-muted-foreground" /> {student.name}
-                        {student.accountStatus === 'blocked' && <span className="text-xs text-destructive">(Blocked)</span>}
-                    </TableCell>
-                    <TableCell>{student.email}</TableCell>
-                    <TableCell className="font-semibold">{student.credits}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end items-center gap-2">
-                         <Dialog onOpenChange={(open) => !open && setSelectedStudent(null)}>
-                            <DialogTrigger asChild>
-                                <Button size="sm" variant="outline" onClick={() => setSelectedStudent(student)}>
-                                    <PlusCircle className="mr-2 h-4 w-4"/> Assign Plan
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                                <DialogHeader>
-                                    <DialogTitle>Assign a Plan to {selectedStudent?.name}</DialogTitle>
-                                    <DialogDescription>Select a credit plan to assign. This will add the plan's credits to the student's current balance.</DialogDescription>
-                                </DialogHeader>
-                                <div className="py-4 space-y-2">
-                                    {plans.length > 0 ? plans.map(plan => (
-                                        <div key={plan.id} className="flex justify-between items-center p-3 border rounded-md">
-                                            <div>
-                                                <p className="font-semibold">{plan.planName}</p>
-                                                <p className="text-sm text-muted-foreground">{plan.credits} credits for ${plan.price}</p>
-                                            </div>
-                                            <DialogClose asChild>
-                                                <Button onClick={() => handleAssignPlan(plan)} disabled={isAssigning}>Assign</Button>
-                                            </DialogClose>
-                                        </div>
-                                    )) : <p className="text-muted-foreground text-center">You haven't created any plans yet.</p>}
-                                </div>
-                            </DialogContent>
-                        </Dialog>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                               {student.accountStatus === 'active' ? (
-                                    <DropdownMenuItem onClick={() => handleStatusChange(student.id, 'blocked')}>
-                                        <ShieldOff className="mr-2 h-4 w-4" /> Block
-                                    </DropdownMenuItem>
-                                ) : (
-                                    <DropdownMenuItem onClick={() => handleStatusChange(student.id, 'active')}>
-                                        <ShieldCheck className="mr-2 h-4 w-4" /> Unblock
-                                    </DropdownMenuItem>
-                                )}
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                            <UserX className="mr-2 h-4 w-4" /> Remove
-                                        </DropdownMenuItem>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                This action will unlink the student from your account. Their data will not be deleted.
-                                            </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => handleRemoveStudent(student.id)}>Confirm</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
+          <div className="border rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center h-24">No students have signed up with your code yet.</TableCell>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Credits</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <>{renderSkeleton()}{renderSkeleton()}</>
+                ) : students.length > 0 ? (
+                  students.map((student) => (
+                    <TableRow key={student.id} className={student.accountStatus === 'blocked' ? 'bg-red-50 dark:bg-red-900/10' : ''}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                           {student.name}
+                           {student.accountStatus === 'blocked' && <Badge variant="destructive">Blocked</Badge>}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-slate-600 dark:text-slate-400">{student.email}</TableCell>
+                      <TableCell className="font-semibold">{student.credits}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end items-center gap-2">
+                           <Dialog onOpenChange={(open) => !open && setSelectedStudent(null)}>
+                              <DialogTrigger asChild>
+                                  <Button size="sm" variant="outline" onClick={() => setSelectedStudent(student)}>
+                                      <PlusCircle className="mr-2 h-4 w-4"/> Assign Plan
+                                  </Button>
+                              </DialogTrigger>
+                              <DialogContent>
+                                  <DialogHeader>
+                                      <DialogTitle>Assign a Plan to {selectedStudent?.name}</DialogTitle>
+                                      <DialogDescription>Select a credit plan to assign. This will add the plan's credits to the student's current balance.</DialogDescription>
+                                  </DialogHeader>
+                                  <div className="py-4 space-y-2">
+                                      {plans.length > 0 ? plans.map(plan => (
+                                          <div key={plan.id} className="flex justify-between items-center p-3 border rounded-lg">
+                                              <div>
+                                                  <p className="font-semibold text-slate-700 dark:text-slate-200">{plan.planName}</p>
+                                                  <p className="text-sm text-slate-500 dark:text-slate-400">{plan.credits} credits for ${plan.price}</p>
+                                              </div>
+                                              <DialogClose asChild>
+                                                  <Button onClick={() => handleAssignPlan(plan)} disabled={isAssigning}>Assign</Button>
+                                              </DialogClose>
+                                          </div>
+                                      )) : <p className="text-slate-500 text-center">You haven't created any plans yet. <Link href="/trainer/plans/create" className="text-indigo-600">Create one now.</Link></p>}
+                                  </div>
+                              </DialogContent>
+                          </Dialog>
+                          <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                 {student.accountStatus === 'active' ? (
+                                      <DropdownMenuItem onClick={() => handleStatusChange(student.id, 'blocked')}>
+                                          <ShieldOff className="mr-2 h-4 w-4" /> Block
+                                      </DropdownMenuItem>
+                                  ) : (
+                                      <DropdownMenuItem onClick={() => handleStatusChange(student.id, 'active')}>
+                                          <ShieldCheck className="mr-2 h-4 w-4" /> Unblock
+                                      </DropdownMenuItem>
+                                  )}
+                                  <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                          <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-600 focus:bg-red-50 focus:text-red-700 dark:focus:bg-red-900/50 dark:focus:text-red-400">
+                                              <UserX className="mr-2 h-4 w-4" /> Remove
+                                          </DropdownMenuItem>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                          <AlertDialogHeader>
+                                              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                              <AlertDialogDescription>
+                                                  This action will unlink the student from your account. Their data will not be deleted.
+                                              </AlertDialogDescription>
+                                          </AlertDialogHeader>
+                                          <AlertDialogFooter>
+                                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                              <AlertDialogAction onClick={() => handleRemoveStudent(student.id)}>Confirm</AlertDialogAction>
+                                          </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                  </AlertDialog>
+                              </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center h-24 text-slate-500">No students have signed up with your code yet.</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

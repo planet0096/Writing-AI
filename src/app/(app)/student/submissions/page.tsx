@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, FileText } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 interface Submission {
@@ -66,17 +66,17 @@ export default function StudentSubmissionsPage() {
 
   const getStatusBadge = (status: string, type?: string) => {
     if (status === 'completed') {
-      return <Badge variant="default">Completed</Badge>;
+      return <Badge variant="success">Completed</Badge>;
     }
     if (type === 'ai') {
-        return <Badge variant="secondary">Processing (AI)</Badge>;
+        return <Badge variant="warning">Processing (AI)</Badge>;
     }
     return <Badge variant="secondary">Pending (Trainer)</Badge>;
   };
   
   const renderSkeleton = () => (
     <Card>
-      <CardContent className="pt-6 flex justify-between items-center">
+      <CardContent className="p-6 flex justify-between items-center">
         <div>
           <Skeleton className="h-6 w-48 mb-2" />
           <Skeleton className="h-4 w-32" />
@@ -87,8 +87,11 @@ export default function StudentSubmissionsPage() {
   );
 
   return (
-    <div className="container mx-auto px-4 py-12">
-      <h1 className="text-3xl font-bold font-headline mb-6">My Submissions</h1>
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-slate-800">My Submissions</h1>
+        <p className="text-sm text-slate-600">Track the status and feedback for all your practice tests.</p>
+      </div>
       
       {isLoading ? (
         <div className="space-y-4">
@@ -99,10 +102,10 @@ export default function StudentSubmissionsPage() {
         <div className="space-y-4">
           {submissions.map(sub => (
             <Card key={sub.id}>
-              <CardContent className="pt-6 flex flex-col md:flex-row justify-between md:items-center gap-4">
+              <CardContent className="p-4 flex flex-col md:flex-row justify-between md:items-center gap-4">
                 <div className="flex-grow">
-                  <h2 className="font-semibold text-lg">{sub.testTitle}</h2>
-                  <p className="text-sm text-muted-foreground">
+                  <h2 className="font-semibold text-lg text-slate-800">{sub.testTitle}</h2>
+                  <p className="text-sm text-slate-500">
                     Submitted {formatDistanceToNow(sub.submittedAt.toDate(), { addSuffix: true })}
                   </p>
                 </div>
@@ -119,9 +122,10 @@ export default function StudentSubmissionsPage() {
           ))}
         </div>
       ) : (
-        <div className="text-center py-16 border-dashed border-2 rounded-lg">
-          <h2 className="text-xl font-semibold">No Submissions Yet</h2>
-          <p className="text-muted-foreground mt-2">
+        <div className="text-center py-16 border-dashed border-2 rounded-xl">
+          <FileText className="mx-auto h-12 w-12 text-slate-400" />
+          <h2 className="mt-4 text-xl font-semibold text-slate-700">No Submissions Yet</h2>
+          <p className="text-slate-500 mt-2 text-sm">
             Once you take a test, your submissions will appear here.
           </p>
         </div>

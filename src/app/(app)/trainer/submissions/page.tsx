@@ -24,6 +24,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowUpDown, FileText } from 'lucide-react';
 import Link from 'next/link';
+import { Badge } from '@/components/ui/badge';
 
 interface Submission {
   id: string;
@@ -153,7 +154,7 @@ export default function TrainerSubmissionsPage() {
   }
 
   const renderSkeleton = () => (
-    <div className="p-4 flex justify-between items-center border rounded-lg">
+    <div className="p-4 flex justify-between items-center border rounded-xl">
         <div className="space-y-2">
             <Skeleton className="h-5 w-48" />
             <Skeleton className="h-4 w-32" />
@@ -163,16 +164,16 @@ export default function TrainerSubmissionsPage() {
   );
 
   return (
-    <div className="container mx-auto px-4 py-12">
+    <div className="p-4 sm:p-6 lg:p-8">
       <Card>
         <CardHeader>
           <CardTitle>Student Submissions</CardTitle>
           <CardDescription>Review and evaluate submissions from your students.</CardDescription>
         </CardHeader>
         <CardContent>
-            <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 bg-muted/50 rounded-lg border">
+            <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 bg-slate-100 dark:bg-slate-800 rounded-xl border">
                 <div className="flex-1 space-y-2">
-                    <label className="text-sm font-medium">Status</label>
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Status</label>
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -183,7 +184,7 @@ export default function TrainerSubmissionsPage() {
                     </Select>
                 </div>
                 <div className="flex-1 space-y-2">
-                    <label className="text-sm font-medium">Student</label>
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Student</label>
                     <Select value={studentFilter} onValueChange={setStudentFilter} disabled={students.length === 0}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -202,61 +203,72 @@ export default function TrainerSubmissionsPage() {
           {isLoading ? (
             <div className="space-y-4">{renderSkeleton()}{renderSkeleton()}{renderSkeleton()}</div>
           ) : submissions.length > 0 ? (
-            <div className="divide-y border rounded-lg">
+            <div className="space-y-4">
               {submissions.map((sub) => (
-                <div key={sub.id} className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div key={sub.id} className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border rounded-xl bg-white dark:bg-slate-800/50">
                   <div className="flex-grow">
-                    <p className="font-semibold">{sub.testTitle}</p>
-                    <p className="text-sm">By: <span className="font-medium">{sub.studentName}</span></p>
-                    <p className="text-sm text-muted-foreground">Submitted {formatDistanceToNow(sub.submittedAt.toDate(), { addSuffix: true })}</p>
+                    <p className="font-semibold text-slate-800 dark:text-slate-200">{sub.testTitle}</p>
+                    <p className="text-sm">By: <span className="font-medium text-slate-600 dark:text-slate-300">{sub.studentName}</span></p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Submitted {formatDistanceToNow(sub.submittedAt.toDate(), { addSuffix: true })}</p>
                   </div>
-                  {sub.status === 'submitted' && sub.evaluationType === 'manual' ? (
-                     <Dialog onOpenChange={(open) => !open && setSelectedSubmission(null)}>
-                        <DialogTrigger asChild>
-                          <Button onClick={() => handleProvideFeedback(sub)}>Provide Feedback</Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-4xl">
-                          <DialogHeader>
-                            <DialogTitle>Evaluate Submission</DialogTitle>
-                            <DialogDescription>
-                              Review the student's answer and provide constructive feedback.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="grid md:grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto py-4">
-                            <div className="space-y-4">
-                               <h3 className="font-semibold">Student's Answer</h3>
-                               <div className="p-4 border rounded-md bg-muted text-sm whitespace-pre-wrap h-full">
-                                   {selectedSubmission?.studentAnswer}
-                               </div>
+                  <div className="flex items-center gap-4">
+                     {sub.status === 'completed' 
+                        ? <Badge variant="success">Completed</Badge>
+                        : (
+                            sub.evaluationType === 'ai' 
+                                ? <Badge variant="warning">Processing (AI)</Badge>
+                                : <Badge variant="secondary">Pending</Badge>
+                        )
+                     }
+                  
+                    {sub.status === 'submitted' && sub.evaluationType === 'manual' ? (
+                       <Dialog onOpenChange={(open) => !open && setSelectedSubmission(null)}>
+                          <DialogTrigger asChild>
+                            <Button onClick={() => handleProvideFeedback(sub)}>Provide Feedback</Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-4xl">
+                            <DialogHeader>
+                              <DialogTitle>Evaluate Submission</DialogTitle>
+                              <DialogDescription>
+                                Review the student's answer and provide constructive feedback.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="grid md:grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto py-4">
+                              <div className="space-y-4">
+                                 <h3 className="font-semibold text-slate-700 dark:text-slate-200">Student's Answer</h3>
+                                 <div className="p-4 border rounded-md bg-slate-50 dark:bg-slate-800 text-sm whitespace-pre-wrap h-full text-slate-600 dark:text-slate-300">
+                                     {selectedSubmission?.studentAnswer}
+                                 </div>
+                              </div>
+                              <div className="space-y-2">
+                                 <h3 className="font-semibold text-slate-700 dark:text-slate-200">Your Feedback</h3>
+                                 <TiptapEditor content={feedback} onChange={setFeedback} />
+                              </div>
                             </div>
-                            <div className="space-y-2">
-                               <h3 className="font-semibold">Your Feedback</h3>
-                               <TiptapEditor content={feedback} onChange={setFeedback} />
-                            </div>
-                          </div>
-                          <DialogFooter>
-                            <DialogClose asChild>
-                                <Button variant="outline">Cancel</Button>
-                            </DialogClose>
-                            <Button onClick={handleFeedbackSubmit} disabled={isSubmitting}>
-                                {isSubmitting ? 'Submitting...' : 'Submit Feedback'}
-                            </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                  ) : (
-                    <Button asChild variant="outline">
-                        <Link href={`/submissions/${sub.id}`}>View Feedback</Link>
-                    </Button>
-                  )}
+                            <DialogFooter>
+                              <DialogClose asChild>
+                                  <Button variant="outline">Cancel</Button>
+                              </DialogClose>
+                              <Button onClick={handleFeedbackSubmit} disabled={isSubmitting}>
+                                  {isSubmitting ? 'Submitting...' : 'Submit Feedback'}
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+                    ) : (
+                      <Button asChild variant="secondary">
+                          <Link href={`/submissions/${sub.id}`}>View Feedback</Link>
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-center py-16 border-2 border-dashed rounded-lg">
-                <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h2 className="mt-4 text-xl font-semibold">No Submissions Found</h2>
-              <p className="text-muted-foreground mt-2">
+            <div className="text-center py-16 border-2 border-dashed rounded-xl">
+                <FileText className="mx-auto h-12 w-12 text-slate-400" />
+              <h2 className="mt-4 text-xl font-semibold text-slate-700">No Submissions Found</h2>
+              <p className="text-slate-500 mt-2 text-sm">
                 No submissions match your current filters.
               </p>
             </div>

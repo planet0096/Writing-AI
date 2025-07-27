@@ -137,13 +137,13 @@ export default function TrainerDashboard() {
   };
 
 
-  if (loading) {
+  if (loading || isDataLoading) {
      return (
-      <div className="container mx-auto px-4 py-12">
-        <div className="space-y-4">
+      <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+        <div className="space-y-2">
           <Skeleton className="h-8 w-1/4" />
           <Skeleton className="h-6 w-1/2" />
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-3">
              <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><Skeleton className="h-5 w-2/3" /><Skeleton className="h-6 w-6" /></CardHeader><CardContent><Skeleton className="h-8 w-1/3" /></CardContent></Card>
              <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><Skeleton className="h-5 w-2/3" /><Skeleton className="h-6 w-6" /></CardHeader><CardContent><Skeleton className="h-8 w-1/3" /></CardContent></Card>
              <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><Skeleton className="h-5 w-2/3" /><Skeleton className="h-6 w-6" /></CardHeader><CardContent><Skeleton className="h-8 w-1/3" /></CardContent></Card>
@@ -162,57 +162,55 @@ export default function TrainerDashboard() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-12">
-      <div className="space-y-6">
-        <div>
-            <h1 className="text-3xl font-bold font-headline">Welcome, {user?.displayName || user?.email}!</h1>
-            <p className="text-muted-foreground">Here's a snapshot of your activity.</p>
-        </div>
-
-        {paymentNotifications.length > 0 && (
-            <Card className="border-amber-500/50 bg-amber-500/5">
-                <CardHeader>
-                    <div className="flex items-center gap-3">
-                        <BellDot className="text-amber-600" />
-                        <CardTitle className="text-amber-700">Manual Payment Verification</CardTitle>
-                    </div>
-                    <CardDescription>Review these payments and assign credits manually once you've confirmed receipt.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                    {paymentNotifications.map(n => (
-                        <div key={n.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 bg-background rounded-md border gap-2">
-                            <p className="text-sm flex-grow">{n.message}</p>
-                            <Button size="sm" onClick={() => handleConfirmPayment(n)}>
-                                <CheckCircle className="mr-2 h-4 w-4" />
-                                Confirm & Assign Credits
-                            </Button>
-                        </div>
-                    ))}
-                </CardContent>
-            </Card>
-        )}
-
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <StatCard title="Active Students" value={stats.activeStudents} icon={<Users />} isLoading={isDataLoading} />
-            <StatCard title="Submissions This Month" value={stats.submissionsThisMonth} icon={<FileText />} isLoading={isDataLoading} />
-            <StatCard title="Pending Evaluations" value={stats.pendingEvaluations} icon={<Clock />} isLoading={isDataLoading} />
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Your Profile Code</CardTitle>
-            <CardDescription>Share this code with your students to connect with them.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isDataLoading ? <Skeleton className="h-10 w-48" /> : (
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                    <p className="text-2xl font-mono tracking-widest bg-muted text-muted-foreground px-4 py-2 rounded-md">{profileCode}</p>
-                    <Button onClick={copyToClipboard} variant="outline" size="sm">Copy</Button>
-                </div>
-            )}
-          </CardContent>
-        </Card>
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+      <div className="space-y-1">
+          <h1 className="text-2xl font-bold text-slate-800">Welcome, {user?.displayName || user?.email}!</h1>
+          <p className="text-slate-600 text-sm">Here's a snapshot of your activity.</p>
       </div>
+
+      {paymentNotifications.length > 0 && (
+          <Card className="border-amber-500/50 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-500/30">
+              <CardHeader>
+                  <div className="flex items-center gap-3">
+                      <BellDot className="text-amber-600 dark:text-amber-500" />
+                      <CardTitle className="text-amber-800 dark:text-amber-300">Manual Payment Verification</CardTitle>
+                  </div>
+                  <CardDescription>Review these payments and assign credits manually once you've confirmed receipt.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                  {paymentNotifications.map(n => (
+                      <div key={n.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-md border gap-2">
+                          <p className="text-sm flex-grow text-slate-600 dark:text-slate-300">{n.message}</p>
+                          <Button size="sm" onClick={() => handleConfirmPayment(n)} variant="secondary">
+                              <CheckCircle className="mr-2 h-4 w-4" />
+                              Confirm & Assign Credits
+                          </Button>
+                      </div>
+                  ))}
+              </CardContent>
+          </Card>
+      )}
+
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <StatCard title="Active Students" value={stats.activeStudents} icon={<Users className="text-indigo-600" />} isLoading={isDataLoading} />
+          <StatCard title="Submissions This Month" value={stats.submissionsThisMonth} icon={<FileText className="text-indigo-600"/>} isLoading={isDataLoading} />
+          <StatCard title="Pending Evaluations" value={stats.pendingEvaluations} icon={<Clock className="text-indigo-600"/>} isLoading={isDataLoading} />
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Your Profile Code</CardTitle>
+          <CardDescription>Share this code with your students to connect with them.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isDataLoading ? <Skeleton className="h-10 w-48" /> : (
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <p className="text-2xl font-mono tracking-widest bg-slate-100 text-slate-700 px-4 py-2 rounded-md dark:bg-slate-800 dark:text-slate-300">{profileCode}</p>
+                  <Button onClick={copyToClipboard} variant="outline">Copy</Button>
+              </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -229,11 +227,11 @@ function StatCard({ title, value, icon, isLoading }: StatCardProps) {
         <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">{title}</CardTitle>
-                <div className="text-muted-foreground">{icon}</div>
+                <div className="text-slate-500">{icon}</div>
             </CardHeader>
             <CardContent>
                 {isLoading ? <Skeleton className="h-8 w-1/3" /> : (
-                    <div className="text-2xl font-bold">{value}</div>
+                    <div className="text-3xl font-bold text-slate-800 dark:text-slate-100">{value}</div>
                 )}
             </CardContent>
         </Card>

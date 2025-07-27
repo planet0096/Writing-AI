@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Clock, BookCopy, User } from 'lucide-react';
+import { Clock, BookCopy, User, FileText } from 'lucide-react';
 
 interface Test {
   id: string;
@@ -81,26 +81,26 @@ export default function StudentTestsPage() {
         <Skeleton className="h-6 w-3/4 mb-2" />
         <Skeleton className="h-4 w-1/2" />
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className="space-y-2 p-6">
         <Skeleton className="h-4 w-full" />
         <Skeleton className="h-4 w-full" />
       </CardContent>
       <CardFooter>
-        <Skeleton className="h-10 w-24" />
+        <Skeleton className="h-10 w-full" />
       </CardFooter>
     </Card>
   );
 
   return (
-    <div className="container mx-auto px-4 py-12">
+    <div className="p-4 sm:p-6 lg:p-8">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
         <div className="space-y-1 mb-4 md:mb-0">
-          <h1 className="text-3xl font-bold font-headline">My Tests</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl font-bold text-slate-800">My Tests</h1>
+          <p className="text-sm text-slate-600">
             {isLoading ? <Skeleton className="h-5 w-48" /> : `Tests assigned by ${trainer?.name || 'your trainer'}.`}
           </p>
         </div>
-        {categories.length > 1 && (
+        {categories.length > 2 && (
             <Tabs value={selectedCategory} onValueChange={setSelectedCategory}>
                 <TabsList>
                     {categories.map(category => (
@@ -127,17 +127,17 @@ export default function StudentTestsPage() {
                 <CardTitle>{test.title}</CardTitle>
                 <CardDescription>A test on the topic of {test.category}.</CardDescription>
               </CardHeader>
-              <CardContent className="flex-grow space-y-4">
-                <div className="flex items-center text-sm text-muted-foreground">
+              <CardContent className="flex-grow space-y-4 text-sm">
+                <div className="flex items-center text-slate-500">
                   <Clock className="mr-2 h-4 w-4" />
                   <span>{test.timer} minutes recommended time</span>
                 </div>
-                <div className="flex items-center text-sm text-muted-foreground">
+                <div className="flex items-center text-slate-500">
                   <BookCopy className="mr-2 h-4 w-4" />
                   <span className="capitalize">{test.category}</span>
                 </div>
                  {trainer && (
-                    <div className="flex items-center text-sm text-muted-foreground">
+                    <div className="flex items-center text-slate-500">
                       <User className="mr-2 h-4 w-4" />
                       <span>From: {trainer.name}</span>
                     </div>
@@ -152,9 +152,10 @@ export default function StudentTestsPage() {
           ))}
         </div>
       ) : (
-        <div className="text-center py-16 border-dashed border-2 rounded-lg">
-            <h2 className="text-xl font-semibold">No Tests Found</h2>
-            <p className="text-muted-foreground mt-2">
+        <div className="text-center py-16 border-dashed border-2 rounded-xl">
+            <FileText className="mx-auto h-12 w-12 text-slate-400" />
+            <h2 className="mt-4 text-xl font-semibold text-slate-700">No Tests Found</h2>
+            <p className="text-slate-500 mt-2 text-sm">
                 {assignedTrainerId ? "Your trainer hasn't assigned any tests yet." : "You are not assigned to a trainer yet."}
             </p>
         </div>

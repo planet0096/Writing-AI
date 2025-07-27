@@ -26,15 +26,15 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="h-16 w-16 animate-spin rounded-full border-4 border-dashed border-primary"></div>
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <div className="h-16 w-16 animate-spin rounded-full border-4 border-dashed border-indigo-600"></div>
       </div>
     );
   }
 
   if (isPublicPage || !user) {
     return (
-      <div className="relative flex min-h-dvh flex-col bg-background">
+      <div className="relative flex min-h-dvh flex-col bg-slate-50">
         <Header />
         <main className="flex-1">{children}</main>
         <Footer />
@@ -44,7 +44,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
   
   if (isTestTakingPage) {
      return (
-        <main>{children}</main>
+        <main className="bg-slate-50">{children}</main>
       )
   }
 
@@ -53,9 +53,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
        <Sidebar>
         <AppSidebar role={role} />
       </Sidebar>
-      <div className="flex flex-col w-full">
+      <div className="flex flex-col w-full bg-slate-50">
          <Header />
-         <main className="flex-1 overflow-y-auto bg-muted/40">
+         <main className="flex-1 overflow-y-auto">
            {children}
          </main>
       </div>

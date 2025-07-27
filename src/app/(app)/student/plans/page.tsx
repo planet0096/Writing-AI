@@ -25,7 +25,6 @@ interface Plan {
 interface PaymentSettings {
     bankDetails?: string;
     paypalEmail?: string;
-
     stripeAccountId?: string;
     stripeOnboardingComplete?: boolean;
 }
@@ -92,7 +91,7 @@ export default function StudentPlansPage() {
             }
             const { error } = await stripe.redirectToCheckout({ sessionId });
             if (error) {
-                toast({ variant: 'destructive', title: 'Stripe Error', description: error.message });
+                toast({ variant: 'destructive', title: 'Stripe Error', description: error.message || "An unknown error occurred." });
             }
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to initiate purchase.' });
@@ -139,7 +138,7 @@ export default function StudentPlansPage() {
     const renderSkeleton = () => (
         <Card className="flex flex-col">
             <CardHeader><Skeleton className="h-6 w-3/4" /><Skeleton className="h-4 w-1/2 mt-2" /></CardHeader>
-            <CardContent className="flex-grow space-y-4">
+            <CardContent className="flex-grow space-y-4 p-6">
                 <Skeleton className="h-12 w-1/3" />
                 <Skeleton className="h-4 w-full" />
                 <Skeleton className="h-4 w-full" />
@@ -151,12 +150,12 @@ export default function StudentPlansPage() {
 
     if (isLoading || authLoading) {
         return (
-            <div className="container mx-auto px-4 py-12">
+            <div className="p-4 sm:p-6 lg:p-8">
                  <div className="text-center max-w-2xl mx-auto mb-12">
                     <Skeleton className="h-10 w-2/3 mx-auto" />
                     <Skeleton className="h-5 w-full mx-auto mt-4" />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-stretch">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {renderSkeleton()}{renderSkeleton()}{renderSkeleton()}
                 </div>
             </div>
@@ -165,46 +164,57 @@ export default function StudentPlansPage() {
 
     if (!assignedTrainerId) {
         return (
-            <div className="container mx-auto px-4 py-12 text-center">
-                <h2 className="text-2xl font-bold">No Trainer Assigned</h2>
-                <p className="text-muted-foreground">You need to be assigned to a trainer to view credit plans.</p>
+            <div className="p-4 sm:p-6 lg:p-8 text-center">
+                <Card className="max-w-md mx-auto">
+                    <CardHeader>
+                        <CardTitle>No Trainer Assigned</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-slate-600">You need to be assigned to a trainer to view credit plans.</p>
+                    </CardContent>
+                </Card>
             </div>
         );
     }
     
     if (plans.length === 0) {
          return (
-            <div className="container mx-auto px-4 py-12 text-center">
-                <h2 className="text-2xl font-bold">No Plans Available</h2>
-                <p className="text-muted-foreground">Your trainer has not created any credit plans yet.</p>
+            <div className="p-4 sm:p-6 lg:p-8 text-center">
+                <Card className="max-w-md mx-auto">
+                    <CardHeader>
+                        <CardTitle>No Plans Available</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-slate-600">Your trainer has not created any credit plans yet.</p>
+                    </CardContent>
+                </Card>
             </div>
         );
     }
 
     return (
-        <div className="container mx-auto px-4 py-12">
+        <div className="p-4 sm:p-6 lg:p-8">
             <div className="text-center max-w-2xl mx-auto mb-12">
-                <h1 className="text-4xl font-bold font-headline">Credit Plans</h1>
-                <p className="text-lg text-muted-foreground mt-2">Purchase credits to get AI or trainer feedback on your practice tests.</p>
+                <h1 className="text-2xl font-bold text-slate-800">Credit Plans</h1>
+                <p className="text-base text-slate-600 mt-2">Purchase credits to get AI or trainer feedback on your practice tests.</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-stretch">
                 {plans.map(plan => (
                     <Card key={plan.id} className="flex flex-col">
                         <CardHeader>
-                            <CardTitle className="text-2xl">{plan.planName}</CardTitle>
-                            <div className="flex items-baseline gap-2">
-                               <span className="text-4xl font-bold">${plan.price}</span>
-                               <span className="text-muted-foreground">/ {plan.credits} credits</span>
+                            <CardTitle>{plan.planName}</CardTitle>
+                            <div className="flex items-baseline gap-2 pt-2">
+                               <span className="text-4xl font-bold text-slate-800">${plan.price}</span>
+                               <span className="text-slate-500">/ {plan.credits} credits</span>
                             </div>
                         </CardHeader>
-                        <CardContent className="flex-grow space-y-2">
-                           {/* Add plan features here if needed */}
-                           <p className="text-muted-foreground">Get detailed feedback and improve your score.</p>
-                           <ul className="space-y-2 pt-2">
-                               <li className="flex items-center gap-2"><Check className="text-green-500"/> AI Evaluations</li>
-                               <li className="flex items-center gap-2"><Check className="text-green-500"/> Trainer Feedback</li>
-                               <li className="flex items-center gap-2"><Check className="text-green-500"/> Conversation Threads</li>
+                        <CardContent className="flex-grow space-y-2 text-sm">
+                           <p className="text-slate-600">Get detailed feedback and improve your score.</p>
+                           <ul className="space-y-2 pt-4">
+                               <li className="flex items-center gap-2"><Check className="text-green-500 h-4 w-4"/> AI Evaluations</li>
+                               <li className="flex items-center gap-2"><Check className="text-green-500 h-4 w-4"/> Trainer Feedback</li>
+                               <li className="flex items-center gap-2"><Check className="text-green-500 h-4 w-4"/> Conversation Threads</li>
                            </ul>
                         </CardContent>
                         <CardFooter>
@@ -229,8 +239,8 @@ export default function StudentPlansPage() {
                                             <Card>
                                                 <CardHeader><CardTitle>PayPal</CardTitle></CardHeader>
                                                 <CardContent>
-                                                    <p className="text-muted-foreground">Please send ${selectedPlan?.price} to:</p>
-                                                    <p className="font-semibold break-words">{paymentSettings.paypalEmail}</p>
+                                                    <p className="text-slate-600">Please send ${selectedPlan?.price} to:</p>
+                                                    <p className="font-semibold break-words text-slate-700">{paymentSettings.paypalEmail}</p>
                                                 </CardContent>
                                                 <CardFooter>
                                                     <Button className="w-full" variant="secondary" onClick={() => handleManualPayment(selectedPlan!)} disabled={isProcessing}>
@@ -243,8 +253,8 @@ export default function StudentPlansPage() {
                                             <Card>
                                                 <CardHeader><CardTitle>Bank Transfer</CardTitle></CardHeader>
                                                 <CardContent>
-                                                    <p className="text-muted-foreground">Please use the following details for the transfer:</p>
-                                                    <p className="font-semibold whitespace-pre-wrap">{paymentSettings.bankDetails}</p>
+                                                    <p className="text-slate-600">Please use the following details for the transfer:</p>
+                                                    <p className="font-semibold whitespace-pre-wrap text-slate-700">{paymentSettings.bankDetails}</p>
                                                 </CardContent>
                                                 <CardFooter>
                                                     <Button className="w-full" variant="secondary" onClick={() => handleManualPayment(selectedPlan!)} disabled={isProcessing}>
