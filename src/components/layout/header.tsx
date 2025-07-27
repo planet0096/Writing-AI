@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -24,6 +25,7 @@ export default function Header() {
   
   const navLinks = [
     { href: '#features', label: 'Features', public: true },
+    { href: '/student/tests', label: 'My Tests', public: false, role: 'student' },
     { href: '/trainer/tests', label: 'My Tests', public: false, role: 'trainer' },
     { href: '#', label: 'Pricing', public: true },
     { href: '#', label: 'Contact', public: true },
@@ -40,7 +42,7 @@ export default function Header() {
           <nav className="hidden md:flex items-center gap-6 text-sm">
             {navLinks.filter(l => l.public || (l.role === role)).map((link) => (
               <Link
-                key={link.label}
+                key={link.href}
                 href={link.href}
                 className="transition-colors hover:text-foreground/80 text-foreground/60"
               >
@@ -88,7 +90,7 @@ export default function Header() {
               <nav className="flex flex-col gap-4">
                 {navLinks.filter(l => l.public || (l.role === role)).map((link) => (
                   <Link
-                    key={link.label}
+                    key={link.href}
                     href={link.href}
                     className="transition-colors hover:text-foreground/80 text-foreground/60"
                   >
