@@ -100,7 +100,7 @@ export default function StudentManagementPage() {
   };
   
   const handleAssignPlan = async (plan: Plan) => {
-    if (!selectedStudent) return;
+    if (!selectedStudent || !user) return;
     setIsAssigning(true);
 
     try {
@@ -127,10 +127,13 @@ export default function StudentManagementPage() {
             const transactionRef = collection(db, 'users', selectedStudent.id, 'credit_transactions');
             transaction.set(doc(transactionRef), {
                 type: 'purchase',
-                amount: plan.credits,
+                amount: plan.price * 100, // Store in cents
                 description: `Assigned plan: ${plan.planName}`,
                 balance_after: newBalance,
                 createdAt: serverTimestamp(),
+                trainerId: user.uid,
+                studentId: selectedStudent.id,
+                planName: plan.planName,
             });
         });
         
@@ -141,8 +144,8 @@ export default function StudentManagementPage() {
         );
         toast({ title: "Success!", description: `${plan.planName} assigned and ${plan.credits} credits added.` });
 
-    } catch (error) {
-        toast({ variant: "destructive", title: "Error", description: "Failed to assign plan." });
+    } catch (error: any) {
+        toast({ variant: "destructive", title: "Error", description: error.message || "Failed to assign plan." });
     } finally {
         setIsAssigning(false);
         setSelectedStudent(null);

@@ -131,6 +131,8 @@ export default function EvaluateSubmissionPage() {
                 description: `${type === 'ai' ? 'AI' : 'Trainer'} Evaluation for "${test.title}"`,
                 balance_after: newBalance,
                 createdAt: serverTimestamp(),
+                trainerId: trainer.id,
+                studentId: user.uid,
             });
 
             // 3. Update submission with evaluation type

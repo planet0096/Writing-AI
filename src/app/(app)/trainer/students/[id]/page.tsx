@@ -123,7 +123,7 @@ export default function StudentDetailsPage() {
     }, [filterType, fetchTransactions]);
 
     const handleCreditAdjustment = async (data: { amount: number; reason: string }) => {
-        if (!student) return;
+        if (!student || !user) return;
         setIsAdjusting(true);
         
         try {
@@ -144,6 +144,8 @@ export default function StudentDetailsPage() {
                     description: `Manual adjustment: ${data.reason}`,
                     balance_after: newBalance,
                     createdAt: serverTimestamp(),
+                    trainerId: user.uid,
+                    studentId: student.id,
                 });
             });
 

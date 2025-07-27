@@ -109,19 +109,26 @@ export default function TrainerDashboard() {
   };
 
   const handleConfirmPayment = async (notification: Notification) => {
-    if (!notification.context) {
+    if (!notification.context || !user) {
         toast({ variant: 'destructive', title: 'Error', description: 'Notification data is missing. Cannot process payment.' });
         return;
     }
 
     try {
         const studentRef = doc(db, 'users', notification.context.studentId);
+        const planRef = doc(db, 'plans', notification.context.planId);
+
         await runTransaction(db, async (transaction) => {
-            const studentSnap = await transaction.get(studentRef);
-            if (!studentSnap.exists()) {
-                throw new Error("Student not found.");
-            }
+            const [studentSnap, planSnap] = await Promise.all([
+                transaction.get(studentRef),
+                transaction.get(planRef),
+            ]);
+
+            if (!studentSnap.exists()) throw new Error("Student not found.");
+            if (!planSnap.exists()) throw new Error("Plan not found.");
+            
             const studentData = studentSnap.data();
+            const planData = planSnap.data();
             const newBalance = (studentData.credits || 0) + notification.context.credits;
 
             // Update student's credits and current plan
@@ -138,10 +145,13 @@ export default function TrainerDashboard() {
             const transactionRef = collection(db, 'users', notification.context.studentId, 'credit_transactions');
             transaction.set(doc(transactionRef), {
                 type: 'purchase',
-                amount: notification.context.credits,
+                amount: planData.price * 100, // Store in cents
                 description: `Manual payment confirmed for ${notification.context.planName}`,
                 balance_after: newBalance,
                 createdAt: serverTimestamp(),
+                trainerId: user.uid,
+                studentId: notification.context.studentId,
+                planName: notification.context.planName,
             });
 
             // Delete the notification

@@ -4,26 +4,25 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, Timestamp, collectionGroup } from 'firebase/firestore';
 import { DateRange } from "react-day-picker";
-import { subDays, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
+import { subDays, startOfMonth, endOfMonth, startOfYear, endOfYear, format as formatDate } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { DateRangePicker } from '@/components/date-range-picker';
 import { SalesDataTable } from '@/components/sales-data-table';
 import { DollarSign, Package, Users, ShoppingCart } from 'lucide-react';
+import { doc, getDoc } from 'firebase/firestore';
 
-interface Transaction {
+interface Sale {
     id: string;
     studentId: string;
-    studentName: string;
+    studentName?: string;
     planName: string;
-    amount: number;
+    amount: number; // in cents
     createdAt: Timestamp;
 }
-
-interface Sale extends Transaction {}
 
 interface MonthlyRevenue {
     month: string;
@@ -50,32 +49,29 @@ export default function SalesDashboardPage() {
         if (!user || !dateRange?.from || !dateRange?.to) return;
         setIsLoading(true);
         try {
-            const allPurchasesQuery = query(
-                collection(db, 'credit_transactions'),
-                where('type', '==', 'purchase')
+            const salesQuery = query(
+              collectionGroup(db, 'credit_transactions'),
+              where('trainerId', '==', user.uid),
+              where('type', '==', 'purchase'),
+              where('createdAt', '>=', dateRange.from),
+              where('createdAt', '<=', dateRange.to),
+              orderBy('createdAt', 'desc')
             );
+            
+            const salesSnapshot = await getDocs(salesQuery);
+            const salesData = salesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale));
+            
+            // Enrich with student names
+            const studentIds = [...new Set(salesData.map(s => s.studentId))];
+            const studentDocs = await Promise.all(studentIds.map(id => getDoc(doc(db, 'users', id))));
+            const studentMap = new Map(studentDocs.map(doc => [doc.id, doc.data()?.name || 'Unknown Student']));
 
-            const purchasesSnapshot = await getDocs(allPurchasesQuery);
-            const allPurchases = purchasesSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as any[];
-
-            const studentsQuery = query(collection(db, 'users'), where('assignedTrainerId', '==', user.uid));
-            const studentsSnapshot = await getDocs(studentsQuery);
-            const trainerStudentIds = new Set(studentsSnapshot.docs.map(doc => doc.id));
-            const studentMap = new Map(studentsSnapshot.docs.map(doc => [doc.id, doc.data().name || 'Unknown Student']));
-
-            const fromTimestamp = Timestamp.fromDate(dateRange.from);
-            const toTimestamp = Timestamp.fromDate(dateRange.to);
-
-            const filteredSales = allPurchases
-                .filter(p => trainerStudentIds.has(p.studentId) && p.createdAt >= fromTimestamp && p.createdAt <= toTimestamp)
-                .map(p => ({
-                    ...p,
-                    studentName: studentMap.get(p.studentId) || 'Unknown Student',
-                    planName: p.description.replace('Purchased: ', '').replace('Manual payment confirmed for ', ''),
-                    amount: p.amount > 0 ? p.amount : 0, // Assuming sales are positive values, but the field is amount
-                })) as Sale[];
-
-            setSales(filteredSales.sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis()));
+            const enrichedSales = salesData.map(sale => ({
+                ...sale,
+                studentName: studentMap.get(sale.studentId)
+            }));
+            
+            setSales(enrichedSales);
 
         } catch (error) {
             console.error("Error fetching sales data: ", error);
@@ -92,32 +88,27 @@ export default function SalesDashboardPage() {
     }, [authLoading, fetchSales]);
 
     const analytics = useMemo(() => {
-        const totalRevenue = sales.reduce((acc, sale) => acc + (sale.amount / 100), 0); // Assuming amount is in cents
+        const totalRevenue = sales.reduce((acc, sale) => acc + sale.amount, 0) / 100;
         const totalPlansSold = sales.length;
         
         const uniqueCustomers = new Set(sales.map(s => s.studentId));
-        const newCustomers = uniqueCustomers.size; // Simple version for now
+        const newCustomers = uniqueCustomers.size; 
 
-        const monthlyRevenue: MonthlyRevenue[] = sales.reduce((acc, sale) => {
-            const month = sale.createdAt.toDate().toLocaleString('default', { month: 'short', year: '2-digit' });
-            const existingMonth = acc.find(m => m.month === month);
-            if (existingMonth) {
-                existingMonth.revenue += sale.amount / 100;
-            } else {
-                acc.push({ month, revenue: sale.amount / 100 });
-            }
-            return acc;
-        }, [] as MonthlyRevenue[]);
+        const monthlyRevenueMap = new Map<string, number>();
+        sales.forEach(sale => {
+            const month = formatDate(sale.createdAt.toDate(), 'MMM yy');
+            const currentRevenue = monthlyRevenueMap.get(month) || 0;
+            monthlyRevenueMap.set(month, currentRevenue + sale.amount / 100);
+        });
+        const monthlyRevenue = Array.from(monthlyRevenueMap, ([month, revenue]) => ({ month, revenue })).reverse();
 
-        const planSales: PlanSale[] = sales.reduce((acc, sale) => {
-            const existingPlan = acc.find(p => p.name === sale.planName);
-            if (existingPlan) {
-                existingPlan.count += 1;
-            } else {
-                acc.push({ name: sale.planName, count: 1 });
-            }
-            return acc;
-        }, [] as PlanSale[]);
+
+        const planSalesMap = new Map<string, number>();
+        sales.forEach(sale => {
+            const currentCount = planSalesMap.get(sale.planName) || 0;
+            planSalesMap.set(sale.planName, currentCount + 1);
+        });
+        const planSales = Array.from(planSalesMap, ([name, count]) => ({ name, count }));
 
 
         return {
@@ -125,7 +116,7 @@ export default function SalesDashboardPage() {
             totalPlansSold,
             newCustomers,
             avgRevenuePerStudent: newCustomers > 0 ? totalRevenue / newCustomers : 0,
-            monthlyRevenue: monthlyRevenue.reverse(),
+            monthlyRevenue,
             planSales,
         };
     }, [sales]);
@@ -155,7 +146,7 @@ export default function SalesDashboardPage() {
                                 <BarChart data={analytics.monthlyRevenue}>
                                     <CartesianGrid strokeDasharray="3 3" />
                                     <XAxis dataKey="month" />
-                                    <YAxis />
+                                    <YAxis tickFormatter={(value) => `$${value}`} />
                                     <Tooltip formatter={(value) => `$${Number(value).toFixed(2)}`} />
                                     <Legend />
                                     <Bar dataKey="revenue" fill="#8884d8" name="Revenue" />

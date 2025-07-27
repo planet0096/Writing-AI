@@ -120,6 +120,7 @@ export const createStripeCheckoutSession = ai.defineFlow({
         metadata: {
             studentId,
             planId,
+            trainerId,
             credits: plan.credits.toString() // Metadata values must be strings
         }
     });
@@ -155,9 +156,9 @@ export const stripeWebhook = ai.defineFlow<Request, Response>(
     // Handle the event
     if (event.type === 'checkout.session.completed') {
         const session = event.data.object as Stripe.Checkout.Session;
-        const { studentId, planId, credits } = session.metadata!;
+        const { studentId, planId, trainerId, credits } = session.metadata!;
         
-        if (!studentId || !planId || !credits) {
+        if (!studentId || !planId || !credits || !trainerId) {
             console.error("Webhook received with missing metadata", session.metadata);
             return new Response('Webhook Error: Missing metadata.', { status: 400 });
         }
@@ -194,10 +195,13 @@ export const stripeWebhook = ai.defineFlow<Request, Response>(
                 const transactionRef = collection(db, 'users', studentId, 'credit_transactions');
                 transaction.set(doc(transactionRef), {
                     type: 'purchase',
-                    amount: creditsToAdd,
+                    amount: planData.price * 100,
                     description: `Purchased: ${planData.planName}`,
                     balance_after: newBalance,
                     createdAt: serverTimestamp(),
+                    trainerId: trainerId,
+                    studentId: studentId,
+                    planName: planData.planName,
                 });
             });
 
