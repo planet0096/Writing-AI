@@ -61,9 +61,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (role === 'student') router.push('/student/dashboard');
         if (role === 'trainer') router.push('/trainer/dashboard');
       } else if (isProtectedStudentPage && role !== 'student') {
-        router.push('/login');
+        console.log("Redirecting trainer from student page");
+        router.push('/trainer/dashboard'); // Or some other appropriate page
       } else if (isProtectedTrainerPage && role !== 'trainer') {
-        router.push('/login');
+        console.log("Redirecting student from trainer page");
+        router.push('/student/dashboard'); // Or some other appropriate page
       }
     }
   }, [user, role, loading, pathname, router]);

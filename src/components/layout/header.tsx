@@ -23,9 +23,10 @@ export default function Header() {
   };
   
   const navLinks = [
-    { href: '#features', label: 'Features' },
-    { href: '#', label: 'Pricing' },
-    { href: '#', label: 'Contact' },
+    { href: '#features', label: 'Features', public: true },
+    { href: '/trainer/tests', label: 'My Tests', public: false, role: 'trainer' },
+    { href: '#', label: 'Pricing', public: true },
+    { href: '#', label: 'Contact', public: true },
   ];
 
   return (
@@ -37,7 +38,7 @@ export default function Header() {
             <span className="font-bold font-headline inline-block">IELTS Prep Hub</span>
           </Link>
           <nav className="hidden md:flex items-center gap-6 text-sm">
-            {navLinks.map((link) => (
+            {navLinks.filter(l => l.public || (l.role === role)).map((link) => (
               <Link
                 key={link.label}
                 href={link.href}
@@ -85,7 +86,7 @@ export default function Header() {
                 <span className="font-bold font-headline">IELTS Prep Hub</span>
               </Link>
               <nav className="flex flex-col gap-4">
-                {navLinks.map((link) => (
+                {navLinks.filter(l => l.public || (l.role === role)).map((link) => (
                   <Link
                     key={link.label}
                     href={link.href}
