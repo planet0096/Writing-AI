@@ -29,42 +29,55 @@ interface Feedback {
     highlightedAnswer: string;
 }
 
-const parseHighlightedAnswer = (htmlString: string) => {
+const descriptorColorMap: Record<string, string> = {
+    "Task Achievement": "underline-purple-500",
+    "Coherence and Cohesion": "underline-green-500",
+    "Lexical Resource": "underline-blue-500",
+    "Grammatical Range and Accuracy": "underline-red-500",
+};
+
+export const parseErrorString = (htmlString: string) => {
     if (typeof window === 'undefined') return []; // Don't run on server
 
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(htmlString, 'text/html');
-    const nodes = Array.from(doc.body.childNodes);
-    
-    return nodes.map((node, index) => {
-        if (node.nodeName.toLowerCase() === 'mistake') {
-            const element = node as HTMLElement;
-            const type = element.getAttribute('type') || 'correction';
-            const suggestion = element.getAttribute('suggestion') || 'No suggestion available.';
-            const text = element.textContent || '';
+    const parts = [];
+    const regex = /<error (.*?)>(.*?)<\/error>/g;
+    let lastIndex = 0;
+    let match;
 
-            let colorClass = 'bg-yellow-200/50 text-yellow-800 dark:bg-yellow-800/30 dark:text-yellow-300';
-            if (type === 'grammar') colorClass = 'bg-red-200/50 text-red-800 dark:bg-red-800/30 dark:text-red-300';
-            if (type === 'spelling') colorClass = 'bg-blue-200/50 text-blue-800 dark:bg-blue-800/30 dark:text-blue-300';
-            if (type === 'lexis') colorClass = 'bg-green-200/50 text-green-800 dark:bg-green-800/30 dark:text-green-300';
-
-
-            return (
-                <Tooltip key={index}>
-                    <TooltipTrigger asChild>
-                        <span className={`px-1 rounded-md cursor-pointer ${colorClass}`}>
-                            {text}
-                        </span>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs text-center" side="top">
-                        <p>{suggestion}</p>
-                    </TooltipContent>
-                </Tooltip>
-            );
+    while ((match = regex.exec(htmlString)) !== null) {
+        // Text before the tag
+        if (match.index > lastIndex) {
+            parts.push(htmlString.substring(lastIndex, match.index));
         }
-        return <span key={index}>{node.textContent}</span>;
-    });
+
+        const attrsString = match[1];
+        const text = match[2];
+
+        // Parse attributes
+        const attrs = Array.from(attrsString.matchAll(/(\w+)="(.*?)"/g)).reduce((acc, attrMatch) => {
+            acc[attrMatch[1]] = attrMatch[2];
+            return acc;
+        }, {} as Record<string, string>);
+
+        parts.push({
+            text,
+            descriptor: attrs.descriptor,
+            errorType: attrs.error_type,
+            explanation: attrs.explanation,
+            correction: attrs.correction,
+        });
+
+        lastIndex = regex.lastIndex;
+    }
+
+    // Text after the last tag
+    if (lastIndex < htmlString.length) {
+        parts.push(htmlString.substring(lastIndex));
+    }
+
+    return parts;
 };
+
 
 export default function InteractiveFeedbackDisplay({ feedback }: { feedback: Feedback }) {
     
@@ -121,7 +134,3 @@ export default function InteractiveFeedbackDisplay({ feedback }: { feedback: Fee
         </TooltipProvider>
     );
 }
-
-// NOTE: The highlighted answer needs to be rendered on the results page itself, not within this component,
-// because this component is inside a sticky container. The logic `parseHighlightedAnswer` is provided
-// for use on that page. It is not used here to avoid layout issues.

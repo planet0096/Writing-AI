@@ -11,7 +11,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import Image from 'next/image';
-import InteractiveFeedbackDisplay from '@/components/interactive-feedback-display';
+import InteractiveFeedbackDisplay, { parseErrorString } from '@/components/interactive-feedback-display';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface Submission {
   testId: string;
@@ -27,6 +28,48 @@ interface Test {
   questionImageUrl?: string;
   sampleAnswer?: string;
 }
+
+const descriptorColorMap: Record<string, string> = {
+    "Task Achievement": "decoration-purple-500",
+    "Coherence and Cohesion": "decoration-green-500",
+    "Lexical Resource": "decoration-blue-500",
+    "Grammatical Range and Accuracy": "decoration-red-500",
+};
+
+
+const HighlightedAnswerDisplay = ({ htmlString }: { htmlString: string }) => {
+    const parsedParts = parseErrorString(htmlString);
+
+    return (
+        <p className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap leading-relaxed">
+            {parsedParts.map((part, index) => {
+                if (typeof part === 'string') {
+                    return <React.Fragment key={index}>{part}</React.Fragment>;
+                }
+
+                const underlineClass = descriptorColorMap[part.descriptor] || 'decoration-gray-500';
+
+                return (
+                    <Tooltip key={index}>
+                        <TooltipTrigger asChild>
+                            <span className={`underline decoration-wavy ${underlineClass} decoration-2 cursor-pointer font-semibold`}>
+                                {part.text}
+                            </span>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs text-left" side="top">
+                            <div className="space-y-1 p-1">
+                                <p className="font-bold text-base">{part.correction}</p>
+                                <p className="text-xs text-muted-foreground uppercase font-semibold">{part.errorType}</p>
+                                <p className="text-sm">{part.explanation}</p>
+                            </div>
+                        </TooltipContent>
+                    </Tooltip>
+                );
+            })}
+        </p>
+    );
+};
+
 
 export default function SubmissionResultPage() {
   const params = useParams();
@@ -147,14 +190,13 @@ export default function SubmissionResultPage() {
                     <Card>
                         <CardHeader><CardTitle>Your Answer</CardTitle></CardHeader>
                         <CardContent>
-                            {isStructuredFeedback ? (
-                                <div
-                                    className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap"
-                                    dangerouslySetInnerHTML={{ __html: submission.feedback.highlightedAnswer }}
-                                />
-                            ) : (
-                               <p className="whitespace-pre-wrap text-muted-foreground">{submission?.studentAnswer}</p>
-                            )}
+                            <TooltipProvider>
+                                {isStructuredFeedback ? (
+                                    <HighlightedAnswerDisplay htmlString={submission.feedback.highlightedAnswer} />
+                                ) : (
+                                   <p className="whitespace-pre-wrap text-muted-foreground">{submission?.studentAnswer}</p>
+                                )}
+                            </TooltipProvider>
                         </CardContent>
                     </Card>
 

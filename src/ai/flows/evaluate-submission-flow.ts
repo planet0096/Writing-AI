@@ -25,7 +25,7 @@ const EvaluationOutputSchema = z.object({
         feedback: z.string().describe("Detailed feedback on the student's performance for this descriptor."),
         suggestions: z.array(z.string()).describe("Actionable suggestions for improvement related to this descriptor.")
     })).length(4),
-    highlightedAnswer: z.string().describe("The student's original answer with mistakes wrapped in <mistake> tags. Example: 'This <mistake type=\"grammar\" suggestion=\"Use the past tense 'was'.\">is</mistake> a good point.'")
+    highlightedAnswer: z.string().describe(`The student's original answer with mistakes wrapped in <error> tags. The tag MUST have four attributes: 'descriptor' (one of "Task Achievement", "Coherence and Cohesion", "Lexical Resource", or "Grammatical Range and Accuracy"), 'error_type' (e.g., "Spelling"), 'explanation' (why it's wrong), and 'correction' (the fix). Example: '...some <error descriptor="Lexical Resource" error_type="Spelling" explanation="This is a common spelling mistake." correction="people">peeple</error> may disagree.'`)
 });
 
 
@@ -49,7 +49,13 @@ const evaluationPrompt = ai.definePrompt({
     **Evaluation Criteria:**
     1.  **Overall Band Score:** Provide a score from 1.0 to 9.0, in 0.5 increments.
     2.  **Detailed Feedback:** Evaluate based on the four official criteria: Task Achievement, Coherence and Cohesion, Lexical Resource, and Grammatical Range and Accuracy. For each, provide a specific band score, detailed feedback, and a list of actionable suggestions.
-    3.  **Highlighted Answer:** Return the student's original answer, but identify specific errors (grammar, spelling, vocabulary, etc.). Wrap each error in a custom XML-style tag: \`<mistake type="error_category" suggestion="your_correction_suggestion">original_mistake</mistake>\`. The 'type' attribute should be a single word like "grammar", "spelling", "lexis", or "cohesion". The 'suggestion' attribute should be a concise explanation of the correction.
+    3.  **Highlighted Answer:** Return the student's original answer. For each mistake you identify (grammar, spelling, vocabulary, etc.), you MUST wrap the incorrect text in a custom XML-style tag: \`<error>\`. This tag MUST have four attributes:
+        *   \`descriptor\`: The official IELTS band descriptor the error relates to. Must be one of: "Task Achievement", "Coherence and Cohesion", "Lexical Resource", or "Grammatical Range and Accuracy".
+        *   \`error_type\`: A specific category for the mistake (e.g., "Tense Error", "Spelling", "Word Choice", "Linking Word Misuse").
+        *   \`explanation\`: A clear and concise reason why this is a mistake.
+        *   \`correction\`: The suggested correct version of the text.
+        
+        **Example:** \`The data <error descriptor="Grammatical Range and Accuracy" error_type="Subject-Verb Agreement" explanation="The subject 'data' is plural, so the verb must be plural." correction="show">shows</error> a trend.\`
 
     **Student's Submission Details:**
     *   **Original Question:** {{{question}}}
