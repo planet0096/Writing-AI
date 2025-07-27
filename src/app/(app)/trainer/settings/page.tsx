@@ -12,13 +12,14 @@ import { useToast } from "@/hooks/use-toast"
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, updateProfile } from "firebase/auth"
 import { doc, updateDoc } from "firebase/firestore"
 import { auth, db, storage } from "@/lib/firebase"
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage"
+import { getDownloadURL, ref, uploadBytesResumable } from "firebase/storage"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRef, useState } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
-
+import { Progress } from "@/components/ui/progress"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
 
 const profileFormSchema = z.object({
   name: z.string().min(2, {
@@ -44,6 +45,8 @@ export default function AccountSettingsPage() {
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isUploading, setIsUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   const profileForm = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
@@ -113,35 +116,59 @@ export default function AccountSettingsPage() {
     fileInputRef.current?.click()
   }
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!event.target.files || !user) return
-    const file = event.target.files[0]
-    if (!file) return
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files || !user) return;
+    const file = event.target.files[0];
+    if (!file) return;
 
-    setIsUploading(true)
-    try {
-      const storageRef = ref(storage, `avatars/${user.uid}`)
-      await uploadBytes(storageRef, file)
-      const photoURL = await getDownloadURL(storageRef)
+    setIsUploading(true);
+    setUploadProgress(0);
+    setUploadError(null);
 
-      await updateProfile(user, { photoURL })
-      const userDocRef = doc(db, 'users', user.uid)
-      await updateDoc(userDocRef, { photoURL })
+    const storageRef = ref(storage, `avatars/${user.uid}/${file.name}`);
+    const uploadTask = uploadBytesResumable(storageRef, file);
 
-      toast({
-        title: "Avatar updated",
-        description: "Your profile picture has been changed.",
-      })
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Upload Failed",
-        description: error.message,
-      })
-    } finally {
-      setIsUploading(false)
-    }
-  }
+    uploadTask.on('state_changed',
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        setUploadProgress(progress);
+      },
+      (error) => {
+        let errorMessage = 'An unknown error occurred during upload.';
+        switch (error.code) {
+          case 'storage/unauthorized':
+            errorMessage = "Permission Denied: You don't have authorization to upload to this location.";
+            break;
+          case 'storage/canceled':
+            errorMessage = 'Upload was canceled.';
+            break;
+          case 'storage/unknown':
+             errorMessage = 'An unknown storage error occurred. Please check your network and try again.';
+            break;
+        }
+        setUploadError(errorMessage);
+        setIsUploading(false);
+      },
+      async () => {
+        try {
+          const photoURL = await getDownloadURL(uploadTask.snapshot.ref);
+          await updateProfile(user, { photoURL });
+          const userDocRef = doc(db, 'users', user.uid);
+          await updateDoc(userDocRef, { photoURL });
+
+          toast({
+            title: "Avatar updated",
+            description: "Your profile picture has been changed.",
+          });
+        } catch (updateError: any) {
+           setUploadError("Failed to save the updated profile information.");
+        } finally {
+           setIsUploading(false);
+        }
+      }
+    );
+  };
+
 
   const getInitials = (name?: string | null) => {
     if (!name) return 'U';
@@ -174,23 +201,39 @@ export default function AccountSettingsPage() {
           <CardDescription>This information may be displayed to your students.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-           <div className="flex items-center gap-4">
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  disabled={isUploading}
-                />
-                <Avatar className="h-16 w-16 cursor-pointer" onClick={handleAvatarClick}>
-                  <AvatarImage src={user?.photoURL || ''} alt={user?.displayName || 'User'} />
-                  <AvatarFallback>{getInitials(user?.displayName)}</AvatarFallback>
-                </Avatar>
-                <Button onClick={handleAvatarClick} variant="outline" disabled={isUploading}>
-                  {isUploading ? 'Uploading...' : 'Change Avatar'}
-                </Button>
-            </div>
+           <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                    <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    disabled={isUploading}
+                    />
+                    <Avatar className="h-16 w-16 cursor-pointer" onClick={handleAvatarClick}>
+                    <AvatarImage src={user?.photoURL || ''} alt={user?.displayName || 'User'} />
+                    <AvatarFallback>{getInitials(user?.displayName)}</AvatarFallback>
+                    </Avatar>
+                    <Button onClick={handleAvatarClick} variant="outline" disabled={isUploading}>
+                    {isUploading ? 'Uploading...' : 'Change Avatar'}
+                    </Button>
+                </div>
+                 {isUploading && (
+                    <div className="w-full max-w-sm">
+                        <Progress value={uploadProgress} />
+                        <p className="text-sm text-muted-foreground mt-1">{Math.round(uploadProgress)}%</p>
+                    </div>
+                )}
+                 {uploadError && (
+                    <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>Upload Failed</AlertTitle>
+                        <AlertDescription>{uploadError}</AlertDescription>
+                    </Alert>
+                )}
+           </div>
+
             <Form {...profileForm}>
                 <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-4">
                   <FormField
@@ -265,3 +308,5 @@ export default function AccountSettingsPage() {
     </div>
   )
 }
+
+    

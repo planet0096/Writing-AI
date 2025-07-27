@@ -2,11 +2,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
-import { storage } from '@/lib/firebase';
+import { storage, auth } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,8 +15,9 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
-import { Upload, X } from 'lucide-react';
+import { Upload, X, AlertCircle } from 'lucide-react';
 import TiptapEditor from './tiptap-editor';
+import { Alert, AlertTitle, AlertDescription } from './ui/alert';
 
 
 const formSchema = z.object({
@@ -40,6 +41,7 @@ export function TestForm({ initialData, onSave }: TestFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   
@@ -65,7 +67,11 @@ export function TestForm({ initialData, onSave }: TestFormProps) {
   }, [initialData, form]);
 
   const handleImageUpload = (file: File) => {
-    if (!file) return;
+    const user = auth.currentUser;
+    if (!file || !user) {
+        setUploadError("You must be logged in to upload files.");
+        return;
+    };
 
     if (questionImageUrl) {
         handleRemoveImage(false); 
@@ -73,7 +79,9 @@ export function TestForm({ initialData, onSave }: TestFormProps) {
 
     setIsUploading(true);
     setUploadProgress(0);
-    const storageRef = ref(storage, `test_images/${Date.now()}_${file.name}`);
+    setUploadError(null);
+
+    const storageRef = ref(storage, `test_images/${user.uid}/${Date.now()}_${file.name}`);
     const uploadTask = uploadBytesResumable(storageRef, file);
 
     uploadTask.on(
@@ -83,8 +91,19 @@ export function TestForm({ initialData, onSave }: TestFormProps) {
         setUploadProgress(progress);
       },
       (error) => {
-        console.error("Upload failed:", error);
-        toast({ variant: 'destructive', title: 'Upload Failed', description: 'Could not upload image. Check storage rules.' });
+        let errorMessage = 'An unknown error occurred during upload.';
+        switch (error.code) {
+          case 'storage/unauthorized':
+            errorMessage = "Permission Denied: You don't have authorization to upload. Check your storage security rules.";
+            break;
+          case 'storage/canceled':
+            errorMessage = 'Upload was canceled.';
+            break;
+          case 'storage/unknown':
+            errorMessage = 'An unknown storage error occurred. Please check your network and try again.';
+            break;
+        }
+        setUploadError(errorMessage);
         setIsUploading(false);
       },
       () => {
@@ -108,9 +127,14 @@ export function TestForm({ initialData, onSave }: TestFormProps) {
         if (showToast) {
             toast({ title: 'Image removed' });
         }
-    } catch (error) {
-        console.error("Failed to delete image:", error);
-        toast({ variant: 'destructive', title: 'Error', description: 'Failed to remove image.' });
+    } catch (error: any) {
+        let errorMessage = "Failed to remove image."
+        if (error.code === 'storage/object-not-found') {
+            errorMessage = "Image already deleted or not found in storage."
+            // Clear the URL from the form even if the file is not in storage
+            form.setValue('questionImageUrl', '', { shouldValidate: true });
+        }
+        toast({ variant: 'destructive', title: 'Error', description: errorMessage });
     }
   };
 
@@ -166,7 +190,7 @@ export function TestForm({ initialData, onSave }: TestFormProps) {
                         Upload an image to accompany the question, like a chart or graph.
                       </FormDescription>
                       <FormControl>
-                        <div>
+                        <div className="space-y-4">
                          <input
                             type="file"
                             accept="image/*"
@@ -190,6 +214,13 @@ export function TestForm({ initialData, onSave }: TestFormProps) {
                                 </Button>
                              </div>
                           )}
+                           {uploadError && (
+                                <Alert variant="destructive">
+                                    <AlertCircle className="h-4 w-4" />
+                                    <AlertTitle>Upload Failed</AlertTitle>
+                                    <AlertDescription>{uploadError}</AlertDescription>
+                                </Alert>
+                            )}
                         </div>
                       </FormControl>
                        <FormMessage />
@@ -267,3 +298,5 @@ export function TestForm({ initialData, onSave }: TestFormProps) {
     </Form>
   );
 }
+
+    
