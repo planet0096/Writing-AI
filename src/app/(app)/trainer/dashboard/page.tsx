@@ -21,6 +21,7 @@ interface Notification {
         planId: string;
         planName: string;
         credits: number;
+        studentName: string;
     }
 }
 
@@ -109,6 +110,10 @@ export default function TrainerDashboard() {
   };
 
   const handleConfirmPayment = async (notification: Notification) => {
+    if (!notification.context) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Notification data is missing.' });
+        return;
+    }
     try {
         const studentRef = doc(db, 'users', notification.context.studentId);
         await updateDoc(studentRef, {
@@ -124,7 +129,7 @@ export default function TrainerDashboard() {
         await deleteDoc(doc(db, 'notifications', notification.id));
 
         setPaymentNotifications(prev => prev.filter(n => n.id !== notification.id));
-        toast({ title: 'Success', description: `Credits assigned to ${notification.studentName}.` });
+        toast({ title: 'Success', description: `Credits assigned to ${notification.context.studentName}.` });
     } catch (error) {
         console.error(error);
         toast({ variant: 'destructive', title: 'Error', description: 'Failed to assign credits.' });
