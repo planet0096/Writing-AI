@@ -1,0 +1,157 @@
+
+"use client";
+
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useAuth } from '@/contexts/auth-context';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
+import Image from 'next/image';
+import { Separator } from '@/components/ui/separator';
+
+interface Submission {
+  testId: string;
+  studentAnswer: string;
+  feedback?: string;
+}
+
+interface Test {
+  title: string;
+  question: string;
+  questionImageUrl?: string;
+  sampleAnswer?: string;
+}
+
+export default function SubmissionResultPage() {
+  const params = useParams();
+  const submissionId = params.id as string;
+  const { user, loading: authLoading, role } = useAuth();
+  const router = useRouter();
+
+  const [submission, setSubmission] = useState<Submission | null>(null);
+  const [test, setTest] = useState<Test | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (authLoading || !user || !submissionId) return;
+
+    const fetchData = async () => {
+      try {
+        const subRef = doc(db, 'submissions', submissionId);
+        const subSnap = await getDoc(subRef);
+
+        if (!subSnap.exists()) {
+          throw new Error("Submission not found.");
+        }
+        
+        const subData = subSnap.data() as Submission;
+
+        // Basic authorization check
+        if(role === 'student' && subSnap.data().studentId !== user.uid) {
+            throw new Error("You are not authorized to view this submission.");
+        }
+         if(role === 'trainer' && subSnap.data().trainerId !== user.uid) {
+            throw new Error("You are not authorized to view this submission.");
+        }
+
+        setSubmission(subData);
+
+        const testRef = doc(db, 'tests', subData.testId);
+        const testSnap = await getDoc(testRef);
+        if (testSnap.exists()) {
+          setTest(testSnap.data() as Test);
+        } else {
+          throw new Error("Associated test could not be found.");
+        }
+
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [submissionId, user, authLoading, router, role]);
+
+  if (isLoading || authLoading) {
+    return (
+        <div className="container mx-auto px-4 py-8">
+            <div className="grid md:grid-cols-2 gap-8">
+                 <Card>
+                    <CardHeader><Skeleton className="h-8 w-3/4 mb-4" /></CardHeader>
+                    <CardContent><Skeleton className="h-96 w-full" /></CardContent>
+                </Card>
+                <Card>
+                    <CardHeader><Skeleton className="h-8 w-1/2 mb-4" /></CardHeader>
+                    <CardContent><Skeleton className="h-96 w-full" /></CardContent>
+                </Card>
+            </div>
+        </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto px-4 py-12">
+        <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-muted/40">
+        <div className="container mx-auto px-4 py-8">
+            <h1 className="text-3xl font-bold font-headline mb-6">{test?.title}: Feedback</h1>
+            <div className="grid lg:grid-cols-2 gap-8 items-start">
+                {/* Left Column: Question & Answer */}
+                <div className="space-y-6">
+                    <Card>
+                        <CardHeader><CardTitle>Question</CardTitle></CardHeader>
+                        <CardContent className="space-y-4">
+                           {test?.questionImageUrl && (
+                            <div className="relative w-full h-64 mb-4 rounded-md overflow-hidden">
+                                <Image src={test.questionImageUrl} alt="Question visual aid" layout="fill" objectFit="contain" />
+                            </div>
+                           )}
+                           <div className="prose dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: test?.question || ""}} />
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader><CardTitle>Your Answer</CardTitle></CardHeader>
+                        <CardContent>
+                           <p className="whitespace-pre-wrap text-muted-foreground">{submission?.studentAnswer}</p>
+                        </CardContent>
+                    </Card>
+                </div>
+                {/* Right Column: Feedback & Sample */}
+                <div className="space-y-6 lg:sticky lg:top-24">
+                    <Card className="border-primary/50 bg-primary/5">
+                        <CardHeader><CardTitle>Evaluation & Feedback</CardTitle></CardHeader>
+                        <CardContent>
+                            <div className="prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: submission?.feedback || "<p>Feedback is being generated or has not been provided yet.</p>" }}/>
+                        </CardContent>
+                    </Card>
+                    {test?.sampleAnswer && (
+                        <Card>
+                            <CardHeader><CardTitle>Sample Answer</CardTitle></CardHeader>
+                            <CardContent>
+                                <p className="whitespace-pre-wrap text-muted-foreground">{test.sampleAnswer}</p>
+                            </CardContent>
+                        </Card>
+                    )}
+                </div>
+            </div>
+        </div>
+    </div>
+  );
+}

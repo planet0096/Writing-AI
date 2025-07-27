@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -97,7 +97,7 @@ export default function TestTakingPage() {
     if (!user || !testData || !assignedTrainerId) return;
     setIsSubmitting(true);
     try {
-        await addDoc(collection(db, "submissions"), {
+        const submissionRef = await addDoc(collection(db, "submissions"), {
             testId: testData.id,
             studentId: user.uid,
             trainerId: assignedTrainerId,
@@ -106,7 +106,7 @@ export default function TestTakingPage() {
             status: 'submitted',
         });
         toast({ title: "Success!", description: "Your test has been submitted."});
-        router.push('/student/tests');
+        router.push(`/submissions/${submissionRef.id}/evaluate`);
     } catch (error) {
         toast({ variant: "destructive", title: "Submission Failed", description: "Could not submit your test. Please try again."});
         setIsSubmitting(false);
