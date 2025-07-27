@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useEffect, useState } from 'react';
-import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, Timestamp, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -54,7 +54,8 @@ export default function TrainerDashboard() {
           const pendingQuery = query(
             collection(db, 'submissions'),
             where('trainerId', '==', user.uid),
-            where('status', '==', 'submitted')
+            where('status', '==', 'submitted'),
+            where('evaluationType', '==', 'manual')
           );
           const pendingSnapshot = await getDocs(pendingQuery);
           const pendingEvaluations = pendingSnapshot.size;
@@ -91,13 +92,17 @@ export default function TrainerDashboard() {
         <div className="space-y-4">
           <Skeleton className="h-8 w-1/4" />
           <Skeleton className="h-6 w-1/2" />
+          <div className="grid gap-4 md:grid-cols-3">
+             <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><Skeleton className="h-5 w-2/3" /><Skeleton className="h-6 w-6" /></CardHeader><CardContent><Skeleton className="h-8 w-1/3" /></CardContent></Card>
+             <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><Skeleton className="h-5 w-2/3" /><Skeleton className="h-6 w-6" /></CardHeader><CardContent><Skeleton className="h-8 w-1/3" /></CardContent></Card>
+             <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><Skeleton className="h-5 w-2/3" /><Skeleton className="h-6 w-6" /></CardHeader><CardContent><Skeleton className="h-8 w-1/3" /></CardContent></Card>
+          </div>
           <Card>
             <CardHeader>
               <Skeleton className="h-6 w-1/3" />
             </CardHeader>
             <CardContent>
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-full mt-2" />
+              <Skeleton className="h-10 w-48" />
             </CardContent>
           </Card>
         </div>
@@ -113,7 +118,7 @@ export default function TrainerDashboard() {
             <p className="text-muted-foreground">Here's a snapshot of your activity.</p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <StatCard title="Active Students" value={stats.activeStudents} icon={<Users />} isLoading={isDataLoading} />
             <StatCard title="Submissions This Month" value={stats.submissionsThisMonth} icon={<FileText />} isLoading={isDataLoading} />
             <StatCard title="Pending Evaluations" value={stats.pendingEvaluations} icon={<Clock />} isLoading={isDataLoading} />
@@ -126,7 +131,7 @@ export default function TrainerDashboard() {
           </CardHeader>
           <CardContent>
             {isDataLoading ? <Skeleton className="h-10 w-48" /> : (
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                     <p className="text-2xl font-mono tracking-widest bg-muted text-muted-foreground px-4 py-2 rounded-md">{profileCode}</p>
                     <Button onClick={copyToClipboard} variant="outline" size="sm">Copy</Button>
                 </div>
@@ -160,6 +165,3 @@ function StatCard({ title, value, icon, isLoading }: StatCardProps) {
         </Card>
     );
 }
-
-// Need to add getDoc to imports for the profile code fetching
-import { doc, getDoc } from 'firebase/firestore';

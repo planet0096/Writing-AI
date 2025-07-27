@@ -3,8 +3,8 @@
 
 import { useAuth } from '@/contexts/auth-context';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, orderBy, doc, updateDoc, serverTimestamp, getDoc, Query, collectionGroup } from 'firebase/firestore';
-import { useEffect, useState, useMemo } from 'react';
+import { collection, query, where, getDocs, orderBy, doc, updateDoc, serverTimestamp, getDoc, Query } from 'firebase/firestore';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,8 @@ import {
 import TiptapEditor from '@/components/tiptap-editor';
 import { formatDistanceToNow } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowUpDown } from 'lucide-react';
+import { ArrowUpDown, FileText } from 'lucide-react';
+import Link from 'next/link';
 
 interface Submission {
   id: string;
@@ -33,6 +34,7 @@ interface Submission {
   studentAnswer: string;
   submittedAt: { toDate: () => Date };
   status: 'submitted' | 'completed';
+  evaluationType: 'ai' | 'manual';
 }
 
 interface Student {
@@ -73,9 +75,10 @@ export default function TrainerSubmissionsPage() {
     const fetchSubmissions = async () => {
       setIsLoading(true);
       try {
-        let subsQuery: Query = collection(db, 'submissions');
-
-        subsQuery = query(subsQuery, where('trainerId', '==', user.uid));
+        let subsQuery: Query = query(
+            collection(db, 'submissions'),
+            where('trainerId', '==', user.uid)
+        );
         
         if (statusFilter !== 'all') {
             subsQuery = query(subsQuery, where('status', '==', statusFilter));
@@ -136,9 +139,7 @@ export default function TrainerSubmissionsPage() {
               evaluatedAt: serverTimestamp()
           });
           
-          // Refetch or remove from local state
-          setSubmissions(prev => prev.filter(s => s.id !== selectedSubmission.id));
-          setSelectedSubmission(null);
+          setSubmissions(prev => prev.map(s => s.id === selectedSubmission.id ? {...s, status: 'completed'} : s).filter(s => statusFilter === 'all' || s.status === statusFilter));
           
           toast({ title: "Success", description: "Feedback submitted successfully."});
 
@@ -147,11 +148,18 @@ export default function TrainerSubmissionsPage() {
           toast({ variant: 'destructive', title: "Error", description: "Failed to submit feedback."});
       } finally {
           setIsSubmitting(false);
+          setSelectedSubmission(null);
       }
   }
 
   const renderSkeleton = () => (
-    <div className="p-4 flex justify-between items-center"><Skeleton className="h-12 w-full" /></div>
+    <div className="p-4 flex justify-between items-center border rounded-lg">
+        <div className="space-y-2">
+            <Skeleton className="h-5 w-48" />
+            <Skeleton className="h-4 w-32" />
+        </div>
+        <Skeleton className="h-10 w-32" />
+    </div>
   );
 
   return (
@@ -162,7 +170,7 @@ export default function TrainerSubmissionsPage() {
           <CardDescription>Review and evaluate submissions from your students.</CardDescription>
         </CardHeader>
         <CardContent>
-            <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 bg-muted/50 rounded-lg">
+            <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 bg-muted/50 rounded-lg border">
                 <div className="flex-1 space-y-2">
                     <label className="text-sm font-medium">Status</label>
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -176,7 +184,7 @@ export default function TrainerSubmissionsPage() {
                 </div>
                 <div className="flex-1 space-y-2">
                     <label className="text-sm font-medium">Student</label>
-                    <Select value={studentFilter} onValueChange={setStudentFilter}>
+                    <Select value={studentFilter} onValueChange={setStudentFilter} disabled={students.length === 0}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">All Students</SelectItem>
@@ -192,9 +200,9 @@ export default function TrainerSubmissionsPage() {
             </div>
 
           {isLoading ? (
-            <div className="space-y-4">{renderSkeleton()}{renderSkeleton()}</div>
+            <div className="space-y-4">{renderSkeleton()}{renderSkeleton()}{renderSkeleton()}</div>
           ) : submissions.length > 0 ? (
-            <div className="divide-y">
+            <div className="divide-y border rounded-lg">
               {submissions.map((sub) => (
                 <div key={sub.id} className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                   <div className="flex-grow">
@@ -202,7 +210,7 @@ export default function TrainerSubmissionsPage() {
                     <p className="text-sm">By: <span className="font-medium">{sub.studentName}</span></p>
                     <p className="text-sm text-muted-foreground">Submitted {formatDistanceToNow(sub.submittedAt.toDate(), { addSuffix: true })}</p>
                   </div>
-                  {sub.status === 'submitted' ? (
+                  {sub.status === 'submitted' && sub.evaluationType === 'manual' ? (
                      <Dialog onOpenChange={(open) => !open && setSelectedSubmission(null)}>
                         <DialogTrigger asChild>
                           <Button onClick={() => handleProvideFeedback(sub)}>Provide Feedback</Button>
@@ -214,10 +222,10 @@ export default function TrainerSubmissionsPage() {
                               Review the student's answer and provide constructive feedback.
                             </DialogDescription>
                           </DialogHeader>
-                          <div className="grid grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto py-4">
+                          <div className="grid md:grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto py-4">
                             <div className="space-y-4">
                                <h3 className="font-semibold">Student's Answer</h3>
-                               <div className="p-4 border rounded-md bg-muted text-sm whitespace-pre-wrap">
+                               <div className="p-4 border rounded-md bg-muted text-sm whitespace-pre-wrap h-full">
                                    {selectedSubmission?.studentAnswer}
                                </div>
                             </div>
@@ -238,15 +246,16 @@ export default function TrainerSubmissionsPage() {
                       </Dialog>
                   ) : (
                     <Button asChild variant="outline">
-                        <a href={`/submissions/${sub.id}`}>View Feedback</a>
+                        <Link href={`/submissions/${sub.id}`}>View Feedback</Link>
                     </Button>
                   )}
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-center py-16">
-              <h2 className="text-xl font-semibold">No Submissions Found</h2>
+            <div className="text-center py-16 border-2 border-dashed rounded-lg">
+                <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
+              <h2 className="mt-4 text-xl font-semibold">No Submissions Found</h2>
               <p className="text-muted-foreground mt-2">
                 No submissions match your current filters.
               </p>

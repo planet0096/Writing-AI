@@ -3,7 +3,7 @@
 
 import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { useRouter, usePathname } from 'next/navigation';
 
@@ -30,39 +30,58 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const pathname = usePathname();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
+        // User is signed in, set up a real-time listener for their document
         const docRef = doc(db, 'users', user.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const userData = docSnap.data();
-          setRole(userData.role);
-          if (userData.role === 'student') {
-            setAssignedTrainerId(userData.assignedTrainerId || null);
+        const unsubscribeFirestore = onSnapshot(docRef, (docSnap) => {
+          if (docSnap.exists()) {
+            const userData = docSnap.data();
+            setRole(userData.role);
+            if (userData.role === 'student') {
+              setAssignedTrainerId(userData.assignedTrainerId || null);
+            }
           }
-        }
-        setUser(user);
+          // The user object from onAuthStateChanged might be stale,
+          // so we create a new object with the latest auth state and firestore data
+          // This is a bit of a hack to get the UI to update with profile changes
+           setUser({
+              ...user,
+              displayName: docSnap.data()?.name || user.displayName,
+              photoURL: docSnap.data()?.photoURL || user.photoURL,
+           });
+           setLoading(false);
+        });
+
+        // Return a cleanup function for the Firestore listener
+        return () => unsubscribeFirestore();
+
       } else {
+        // User is signed out
         setUser(null);
         setRole(null);
         setAssignedTrainerId(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    return () => unsubscribe();
+    // Return a cleanup function for the auth state listener
+    return () => unsubscribeAuth();
   }, []);
-
-  useEffect(() => {
+  
+    useEffect(() => {
     if (loading) return;
 
+    const isPublicPage = ['/', '/login', '/register'].includes(pathname) || pathname.startsWith('/#') || pathname.startsWith('/ielts-writing-questions');
+    if (isPublicPage) return;
+
     const isAuthPage = pathname === '/login' || pathname === '/register';
-    const isPublicTestPage = pathname.startsWith('/tests/');
-    const isProtectedStudentPage = pathname.startsWith('/student');
+    const isProtectedStudentPage = pathname.startsWith('/student') || pathname.startsWith('/tests');
     const isProtectedTrainerPage = pathname.startsWith('/trainer');
+    const isProfilePage = pathname.startsWith('/profile');
 
     // If trying to access a protected page while logged out, redirect to login
-    if (!user && (isProtectedStudentPage || isProtectedTrainerPage || isPublicTestPage)) {
+    if (!user && (isProtectedStudentPage || isProtectedTrainerPage || isProfilePage)) {
       router.push('/login');
       return;
     }
@@ -81,6 +100,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     }
   }, [user, role, loading, pathname, router]);
+
 
   return (
     <AuthContext.Provider value={{ user, role, loading, assignedTrainerId }}>
