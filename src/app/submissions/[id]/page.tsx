@@ -11,11 +11,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import Image from 'next/image';
+import InteractiveFeedbackDisplay from '@/components/interactive-feedback-display';
 
 interface Submission {
   testId: string;
   studentAnswer: string;
-  feedback?: string;
+  feedback?: any; // Can be string or a structured object
   studentId: string;
   trainerId?: string;
 }
@@ -82,19 +83,30 @@ export default function SubmissionResultPage() {
 
     fetchData();
   }, [submissionId, user, authLoading, router, role]);
+  
+  const isStructuredFeedback = submission?.feedback && typeof submission.feedback === 'object';
 
   if (isLoading || authLoading) {
     return (
         <div className="container mx-auto px-4 py-8">
+             <Skeleton className="h-8 w-1/2 mb-6" />
             <div className="grid md:grid-cols-2 gap-8">
-                 <Card>
-                    <CardHeader><Skeleton className="h-8 w-3/4 mb-4" /></CardHeader>
-                    <CardContent><Skeleton className="h-96 w-full" /></CardContent>
-                </Card>
-                <Card>
-                    <CardHeader><Skeleton className="h-8 w-1/2 mb-4" /></CardHeader>
-                    <CardContent><Skeleton className="h-96 w-full" /></CardContent>
-                </Card>
+                 <div className="space-y-6">
+                    <Card>
+                        <CardHeader><Skeleton className="h-6 w-1/4 mb-4" /></CardHeader>
+                        <CardContent><Skeleton className="h-64 w-full" /></CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader><Skeleton className="h-6 w-1/4 mb-4" /></CardHeader>
+                        <CardContent><Skeleton className="h-32 w-full" /></CardContent>
+                    </Card>
+                </div>
+                <div>
+                    <Card>
+                        <CardHeader><Skeleton className="h-6 w-1/3 mb-4" /></CardHeader>
+                        <CardContent><Skeleton className="h-96 w-full" /></CardContent>
+                    </Card>
+                </div>
             </div>
         </div>
     );
@@ -117,10 +129,37 @@ export default function SubmissionResultPage() {
         <div className="container mx-auto px-4 py-8">
             <h1 className="text-3xl font-bold font-headline mb-6">{test?.title}: Feedback</h1>
             <div className="grid lg:grid-cols-2 gap-8 items-start">
-                {/* Left Column: Question & Answer */}
+                
+                <div className="space-y-6 lg:sticky lg:top-24">
+                   {isStructuredFeedback ? (
+                     <InteractiveFeedbackDisplay feedback={submission.feedback} />
+                   ) : (
+                     <Card className="border-primary/50 bg-primary/5">
+                        <CardHeader><CardTitle>Evaluation & Feedback</CardTitle></CardHeader>
+                        <CardContent>
+                            <div className="prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: submission?.feedback || "<p>Feedback is being generated or has not been provided yet.</p>" }}/>
+                        </CardContent>
+                    </Card>
+                   )}
+                </div>
+
                 <div className="space-y-6">
                     <Card>
-                        <CardHeader><CardTitle>Question</CardTitle></CardHeader>
+                        <CardHeader><CardTitle>Your Answer</CardTitle></CardHeader>
+                        <CardContent>
+                            {isStructuredFeedback ? (
+                                <div
+                                    className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap"
+                                    dangerouslySetInnerHTML={{ __html: submission.feedback.highlightedAnswer }}
+                                />
+                            ) : (
+                               <p className="whitespace-pre-wrap text-muted-foreground">{submission?.studentAnswer}</p>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader><CardTitle>Original Question</CardTitle></CardHeader>
                         <CardContent className="space-y-4">
                            {test?.questionImageUrl && (
                             <div className="relative w-full h-64 mb-4 rounded-md overflow-hidden">
@@ -130,21 +169,7 @@ export default function SubmissionResultPage() {
                            <div className="prose dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: test?.question || ""}} />
                         </CardContent>
                     </Card>
-                    <Card>
-                        <CardHeader><CardTitle>Your Answer</CardTitle></CardHeader>
-                        <CardContent>
-                           <p className="whitespace-pre-wrap text-muted-foreground">{submission?.studentAnswer}</p>
-                        </CardContent>
-                    </Card>
-                </div>
-                {/* Right Column: Feedback & Sample */}
-                <div className="space-y-6 lg:sticky lg:top-24">
-                    <Card className="border-primary/50 bg-primary/5">
-                        <CardHeader><CardTitle>Evaluation & Feedback</CardTitle></CardHeader>
-                        <CardContent>
-                            <div className="prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: submission?.feedback || "<p>Feedback is being generated or has not been provided yet.</p>" }}/>
-                        </CardContent>
-                    </Card>
+
                     {test?.sampleAnswer && (
                         <Card>
                             <CardHeader><CardTitle>Sample Answer</CardTitle></CardHeader>
