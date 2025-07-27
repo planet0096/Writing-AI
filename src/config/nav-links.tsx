@@ -13,6 +13,7 @@ export const NAV_LINKS = {
     ],
     trainer: [
         { href: '/trainer/dashboard', label: 'Dashboard', icon: <LayoutDashboard /> },
+        { href: '/trainer/sales', label: 'Sales', icon: <BarChart3 /> },
         { href: '/trainer/tests', label: 'Tests', icon: <BookCopy /> },
         { href: '/trainer/submissions', label: 'Submissions', icon: <FileText /> },
         { href: '/trainer/students', label: 'Students', icon: <Users /> },
