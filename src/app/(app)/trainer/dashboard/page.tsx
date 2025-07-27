@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useEffect, useState } from 'react';
-import { collection, query, where, getDocs, Timestamp, doc, getDoc, updateDoc, increment } from 'firebase/firestore';
+import { collection, query, where, getDocs, Timestamp, doc, getDoc, updateDoc, increment, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -15,11 +15,13 @@ import Link from 'next/link';
 interface Notification {
     id: string;
     studentName: string;
-    planName: string;
-    credits: number;
-    studentId: string;
-    planId: string;
     message: string;
+    context: {
+        studentId: string;
+        planId: string;
+        planName: string;
+        credits: number;
+    }
 }
 
 export default function TrainerDashboard() {
@@ -108,12 +110,12 @@ export default function TrainerDashboard() {
 
   const handleConfirmPayment = async (notification: Notification) => {
     try {
-        const studentRef = doc(db, 'users', notification.studentId);
+        const studentRef = doc(db, 'users', notification.context.studentId);
         await updateDoc(studentRef, {
-            credits: increment(notification.credits),
+            credits: increment(notification.context.credits),
             currentPlan: {
-                planId: notification.planId,
-                planName: notification.planName,
+                planId: notification.context.planId,
+                planName: notification.context.planName,
                 assignedAt: new Date(),
             }
         });
@@ -173,8 +175,8 @@ export default function TrainerDashboard() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                     {paymentNotifications.map(n => (
-                        <div key={n.id} className="flex items-center justify-between p-3 bg-background rounded-md border">
-                            <p className="text-sm">{n.message}</p>
+                        <div key={n.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 bg-background rounded-md border gap-2">
+                            <p className="text-sm flex-grow">{n.message}</p>
                             <Button size="sm" onClick={() => handleConfirmPayment(n)}>
                                 <CheckCircle className="mr-2 h-4 w-4" />
                                 Confirm & Assign Credits
@@ -232,4 +234,3 @@ function StatCard({ title, value, icon, isLoading }: StatCardProps) {
         </Card>
     );
 }
-

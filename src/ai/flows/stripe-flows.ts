@@ -14,7 +14,15 @@ import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { z } from 'zod';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+if (!process.env.STRIPE_SECRET_KEY) {
+    console.warn("STRIPE_SECRET_KEY is not set. Stripe flows will not work.");
+}
+if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    console.warn("STRIPE_WEBHOOK_SECRET is not set. Stripe webhook flow will not work.");
+}
+
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2024-04-10',
 });
 
@@ -78,10 +86,12 @@ export const createStripeCheckoutSession = ai.defineFlow({
     ]);
 
     if (!planSnap.exists()) throw new Error("Plan not found.");
-    if (!trainerSnap.exists() || !trainerSnap.data().stripeAccountId) throw new Error("Trainer or Stripe Account not configured.");
-
     const plan = planSnap.data();
+    if (!trainerSnap.exists() || !trainerSnap.data().stripeAccountId) {
+        throw new Error("Trainer's Stripe account is not configured.");
+    }
     const stripeAccountId = trainerSnap.data().stripeAccountId;
+    
 
     const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
@@ -109,7 +119,7 @@ export const createStripeCheckoutSession = ai.defineFlow({
         metadata: {
             studentId,
             planId,
-            credits: plan.credits
+            credits: plan.credits.toString() // Metadata values must be strings
         }
     });
 
@@ -137,6 +147,7 @@ export const stripeWebhook = ai.defineFlow<Request, Response>(
         const body = await req.text();
         event = stripe.webhooks.constructEvent(body, sig, endpointSecret);
     } catch (err: any) {
+        console.error(`Webhook signature verification failed.`, err.message);
         return new Response(`Webhook Error: ${err.message}`, { status: 400 });
     }
 
@@ -144,6 +155,11 @@ export const stripeWebhook = ai.defineFlow<Request, Response>(
     if (event.type === 'checkout.session.completed') {
         const session = event.data.object as Stripe.Checkout.Session;
         const { studentId, planId, credits } = session.metadata!;
+        
+        if (!studentId || !planId || !credits) {
+            console.error("Webhook received with missing metadata", session.metadata);
+            return new Response('Webhook Error: Missing metadata.', { status: 400 });
+        }
         
         try {
             const studentRef = doc(db, 'users', studentId);
@@ -160,10 +176,13 @@ export const stripeWebhook = ai.defineFlow<Request, Response>(
                     assignedAt: new Date(),
                 }
             });
+             console.log(`Successfully fulfilled plan ${planId} for student ${studentId}.`);
 
         } catch (error) {
             console.error("Fulfillment error:", error);
-            return new Response(`Fulfillment error: ${error}`, { status: 500 });
+            // We still return a 200 to Stripe to acknowledge receipt, but log the error for investigation.
+            // In a production system, you might have a retry mechanism or alert developers.
+             return new Response(`Fulfillment error: ${error}`, { status: 500 });
         }
     }
 

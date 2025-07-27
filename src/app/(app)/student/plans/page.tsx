@@ -1,10 +1,10 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -25,6 +25,7 @@ interface Plan {
 interface PaymentSettings {
     bankDetails?: string;
     paypalEmail?: string;
+
     stripeAccountId?: string;
     stripeOnboardingComplete?: boolean;
 }
@@ -41,17 +42,23 @@ export default function StudentPlansPage() {
     const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
 
     useEffect(() => {
-        if (!assignedTrainerId) {
+        if (!assignedTrainerId && !authLoading) {
             setIsLoading(false);
             return;
         }
+        if (!assignedTrainerId) return;
+
 
         const fetchPlansAndSettings = async () => {
+            setIsLoading(true);
             try {
+                // Fetch plans created by the assigned trainer
                 const plansQuery = query(collection(db, 'plans'), where('trainerId', '==', assignedTrainerId));
                 const plansSnapshot = await getDocs(plansQuery);
-                setPlans(plansSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Plan)));
+                const fetchedPlans = plansSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Plan))
+                setPlans(fetchedPlans.sort((a, b) => a.price - b.price));
 
+                // Fetch trainer's payment settings
                 const trainerRef = doc(db, 'users', assignedTrainerId);
                 const trainerSnap = await getDoc(trainerRef);
                 if (trainerSnap.exists()) {
@@ -66,7 +73,7 @@ export default function StudentPlansPage() {
         };
 
         fetchPlansAndSettings();
-    }, [assignedTrainerId, toast]);
+    }, [assignedTrainerId, toast, authLoading]);
 
     const handleStripePurchase = async (plan: Plan) => {
         if (!user || !assignedTrainerId) return;
@@ -79,7 +86,11 @@ export default function StudentPlansPage() {
                 origin: window.location.origin,
             });
             const stripe = await stripePromise;
-            const { error } = await stripe!.redirectToCheckout({ sessionId });
+            if (!stripe) {
+                 toast({ variant: 'destructive', title: 'Stripe Error', description: "Stripe.js has not loaded yet." });
+                 return;
+            }
+            const { error } = await stripe.redirectToCheckout({ sessionId });
             if (error) {
                 toast({ variant: 'destructive', title: 'Stripe Error', description: error.message });
             }
@@ -101,11 +112,14 @@ export default function StudentPlansPage() {
                 type: 'manual_payment_proof',
                 message: `${user.displayName} has indicated they've paid for the "${plan.planName}" plan.`,
                 link: `/trainer/students`,
-                planId: plan.id,
-                planName: plan.planName,
-                credits: plan.credits,
                 isRead: false,
                 createdAt: serverTimestamp(),
+                 // Add context for the trainer
+                context: {
+                    planId: plan.id,
+                    planName: plan.planName,
+                    credits: plan.credits,
+                }
             });
              toast({ title: 'Notification Sent!', description: 'Your trainer has been notified. They will assign credits upon verifying payment.' });
              setSelectedPlan(null); // Close dialog
@@ -115,6 +129,12 @@ export default function StudentPlansPage() {
             setIsProcessing(false);
         }
     }
+    
+    const hasPaymentMethods = useMemo(() => {
+        if (!paymentSettings) return false;
+        return paymentSettings.stripeOnboardingComplete || !!paymentSettings.paypalEmail || !!paymentSettings.bankDetails;
+    }, [paymentSettings]);
+
 
     const renderSkeleton = () => (
         <Card className="flex flex-col">
@@ -190,7 +210,9 @@ export default function StudentPlansPage() {
                         <CardFooter>
                             <Dialog onOpenChange={(open) => !open && setSelectedPlan(null)}>
                                 <DialogTrigger asChild>
-                                    <Button className="w-full" onClick={() => setSelectedPlan(plan)}>Purchase Plan</Button>
+                                    <Button className="w-full" onClick={() => setSelectedPlan(plan)} disabled={!hasPaymentMethods}>
+                                        {hasPaymentMethods ? 'Purchase Plan' : 'Not Available'}
+                                    </Button>
                                 </DialogTrigger>
                                 <DialogContent>
                                     <DialogHeader>
