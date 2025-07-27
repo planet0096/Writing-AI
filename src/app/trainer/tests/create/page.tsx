@@ -6,15 +6,22 @@ import { useRouter } from 'next/navigation';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
+import { useEffect } from 'react';
 
 export default function CreateTestPage() {
-    const { user } = useAuth();
+    const { user, loading: authLoading } = useAuth();
     const router = useRouter();
     const { toast } = useToast();
 
-    if (!user) {
-        // This should be handled by the AuthProvider, but as a fallback
-        router.push('/login');
+    useEffect(() => {
+        if (!authLoading && !user) {
+            // This should be handled by the AuthProvider, but as a fallback
+            router.push('/login');
+        }
+    }, [user, authLoading, router]);
+
+    if (authLoading || !user) {
+        // Render a loading state or null while waiting for auth state
         return null;
     }
 
