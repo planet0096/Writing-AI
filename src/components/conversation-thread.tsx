@@ -1,15 +1,16 @@
 
+
 "use client";
 
-import { useEffect, useState } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
+import { useEffect, useState, useCallback } from 'react';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, writeBatch, getDocs, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Textarea } from './ui/textarea';
 import { Button } from './ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Paperclip } from 'lucide-react';
+import { Paperclip, Send } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { User as FirebaseUser } from 'firebase/auth';
@@ -21,6 +22,7 @@ interface Message {
     authorName: string;
     authorRole: 'student' | 'trainer';
     createdAt: { toDate: () => Date };
+    isRead: boolean;
 }
 
 interface ConversationThreadProps {
@@ -43,6 +45,20 @@ export default function ConversationThread({ submissionId, studentId, trainerId,
     const [isSending, setIsSending] = useState(false);
     const { toast } = useToast();
 
+    const markMessagesAsRead = useCallback(async () => {
+        const messagesRef = collection(db, 'submissions', submissionId, 'feedback_thread');
+        const q = query(messagesRef, where('isRead', '==', false), where('authorRole', '!=', currentUserRole));
+        
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) return;
+
+        const batch = writeBatch(db);
+        snapshot.docs.forEach(doc => {
+            batch.update(doc.ref, { isRead: true });
+        });
+        await batch.commit();
+    }, [submissionId, currentUserRole]);
+
     useEffect(() => {
         const messagesRef = collection(db, 'submissions', submissionId, 'feedback_thread');
         const q = query(messagesRef, orderBy('createdAt', 'asc'));
@@ -51,10 +67,13 @@ export default function ConversationThread({ submissionId, studentId, trainerId,
             const fetchedMessages = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
             setMessages(fetchedMessages);
             setIsLoading(false);
+            
+            // Mark messages as read when the component mounts or updates
+            markMessagesAsRead();
         });
 
         return () => unsubscribe();
-    }, [submissionId]);
+    }, [submissionId, markMessagesAsRead]);
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -70,6 +89,7 @@ export default function ConversationThread({ submissionId, studentId, trainerId,
                 authorName: currentUser.displayName || 'Anonymous',
                 authorRole: currentUserRole,
                 createdAt: serverTimestamp(),
+                isRead: false,
             });
 
             // Create a notification for the other user
@@ -101,7 +121,7 @@ export default function ConversationThread({ submissionId, studentId, trainerId,
             <CardHeader><CardTitle>Conversation Thread</CardTitle></CardHeader>
             <CardContent>
                 <div className="space-y-6">
-                    <div className="space-y-4 max-h-96 overflow-y-auto pr-4">
+                    <div className="space-y-4 max-h-96 overflow-y-auto pr-4 border rounded-lg p-4 bg-slate-50">
                         {isLoading && <p>Loading conversation...</p>}
                         {!isLoading && messages.length === 0 && (
                             <div className="text-center text-muted-foreground py-8">
@@ -118,7 +138,7 @@ export default function ConversationThread({ submissionId, studentId, trainerId,
                                         <AvatarFallback>{getInitials(message.authorName)}</AvatarFallback>
                                     </Avatar>
                                 )}
-                                <div className={cn("max-w-xs md:max-w-md rounded-lg p-3", message.authorId === currentUser.uid ? "bg-primary text-primary-foreground" : "bg-muted")}>
+                                <div className={cn("max-w-xs md:max-w-md rounded-lg p-3", message.authorId === currentUser.uid ? "bg-primary text-primary-foreground" : "bg-white border")}>
                                     <p className="text-sm font-semibold">{message.authorId === currentUser.uid ? "You" : message.authorName}</p>
                                     <p className="text-sm whitespace-pre-wrap">{message.text}</p>
                                      <p className="text-xs opacity-70 mt-1 text-right">
@@ -135,16 +155,17 @@ export default function ConversationThread({ submissionId, studentId, trainerId,
                         ))}
                     </div>
 
-                    <form onSubmit={handleSendMessage} className="space-y-2">
+                    <form onSubmit={handleSendMessage} className="space-y-2 relative">
                         <Textarea 
                             value={newMessage}
                             onChange={(e) => setNewMessage(e.target.value)}
                             placeholder={currentUserRole === 'student' ? "Ask a follow-up question..." : "Type your reply..."}
                             disabled={isSending}
+                            className="pr-20"
                         />
-                        <div className="flex justify-end">
-                            <Button type="submit" disabled={isSending || !newMessage.trim()}>
-                                {isSending ? "Sending..." : "Send"}
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                            <Button type="submit" disabled={isSending || !newMessage.trim()} size="icon">
+                                <Send className="h-4 w-4"/>
                             </Button>
                         </div>
                     </form>
@@ -153,3 +174,4 @@ export default function ConversationThread({ submissionId, studentId, trainerId,
         </Card>
     );
 }
+
