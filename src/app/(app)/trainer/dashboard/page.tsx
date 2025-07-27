@@ -111,7 +111,7 @@ export default function TrainerDashboard() {
 
   const handleConfirmPayment = async (notification: Notification) => {
     if (!notification.context) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Notification data is missing.' });
+        toast({ variant: 'destructive', title: 'Error', description: 'Notification data is missing. Cannot process payment.' });
         return;
     }
     try {
