@@ -1,0 +1,172 @@
+
+'use server';
+/**
+ * @fileOverview Stripe-related Genkit flows for payments and connections.
+ *
+ * - createStripeConnectLink - Creates a Stripe Connect onboarding link for a trainer.
+ * - createStripeCheckoutSession - Creates a Stripe Checkout session for a student to purchase a plan.
+ * - stripeWebhook - Handles incoming webhooks from Stripe, specifically for completed checkouts.
+ */
+import { ai } from '@/ai/genkit';
+import { db } from '@/lib/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
+import { z } from 'zod';
+import Stripe from 'stripe';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2024-04-10',
+});
+
+// Flow to create a Stripe Connect account and onboarding link
+export const createStripeConnectLink = ai.defineFlow(
+  {
+    name: 'createStripeConnectLink',
+    inputSchema: z.object({ trainerId: z.string(), origin: z.string() }),
+    outputSchema: z.object({ url: z.string() }),
+  },
+  async ({ trainerId, origin }) => {
+    const userRef = doc(db, 'users', trainerId);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists() || userSnap.data().role !== 'trainer') {
+      throw new Error('Trainer not found.');
+    }
+
+    let stripeAccountId = userSnap.data().stripeAccountId;
+
+    if (!stripeAccountId) {
+      const account = await stripe.accounts.create({
+        type: 'express',
+        email: userSnap.data().email,
+        country: 'US', // Or make this dynamic
+        capabilities: {
+          card_payments: { requested: true },
+          transfers: { requested: true },
+        },
+      });
+      stripeAccountId = account.id;
+      await updateDoc(userRef, { stripeAccountId });
+    }
+
+    const accountLink = await stripe.accountLinks.create({
+      account: stripeAccountId,
+      refresh_url: `${origin}/trainer/settings/payments`,
+      return_url: `${origin}/trainer/settings/payments/stripe-return?account_id=${stripeAccountId}`,
+      type: 'account_onboarding',
+    });
+
+    return { url: accountLink.url };
+  }
+);
+
+
+// Flow to create a Stripe Checkout Session
+export const createStripeCheckoutSession = ai.defineFlow({
+    name: 'createStripeCheckoutSession',
+    inputSchema: z.object({
+        planId: z.string(),
+        studentId: z.string(),
+        trainerId: z.string(),
+        origin: z.string(),
+    }),
+    outputSchema: z.object({ sessionId: z.string() }),
+}, async ({ planId, studentId, trainerId, origin }) => {
+
+    const [planSnap, trainerSnap] = await Promise.all([
+        getDoc(doc(db, 'plans', planId)),
+        getDoc(doc(db, 'users', trainerId)),
+    ]);
+
+    if (!planSnap.exists()) throw new Error("Plan not found.");
+    if (!trainerSnap.exists() || !trainerSnap.data().stripeAccountId) throw new Error("Trainer or Stripe Account not configured.");
+
+    const plan = planSnap.data();
+    const stripeAccountId = trainerSnap.data().stripeAccountId;
+
+    const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [{
+            price_data: {
+                currency: 'usd',
+                product_data: {
+                    name: plan.planName,
+                    description: `${plan.credits} credits for IELTS Prep Hub`,
+                },
+                unit_amount: Math.round(plan.price * 100), // Price in cents
+            },
+            quantity: 1,
+        }],
+        mode: 'payment',
+        success_url: `${origin}/student/plans?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${origin}/student/plans`,
+        // The fee is taken from the connected account's balance, not the platform's.
+        payment_intent_data: {
+            application_fee_amount: Math.round(plan.price * 100 * 0.1), // 10% platform fee
+            transfer_data: {
+                destination: stripeAccountId,
+            },
+        },
+        metadata: {
+            studentId,
+            planId,
+            credits: plan.credits
+        }
+    });
+
+    if (!session.id) {
+        throw new Error("Failed to create Stripe session.");
+    }
+
+    return { sessionId: session.id };
+});
+
+
+// HTTP-triggered flow for Stripe Webhooks
+export const stripeWebhook = ai.defineFlow<Request, Response>(
+  {
+    name: 'stripeWebhook',
+    https: {},
+  },
+  async (req) => {
+    const sig = req.headers.get('stripe-signature') as string;
+    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+    
+    let event: Stripe.Event;
+
+    try {
+        const body = await req.text();
+        event = stripe.webhooks.constructEvent(body, sig, endpointSecret);
+    } catch (err: any) {
+        return new Response(`Webhook Error: ${err.message}`, { status: 400 });
+    }
+
+    // Handle the event
+    if (event.type === 'checkout.session.completed') {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const { studentId, planId, credits } = session.metadata!;
+        
+        try {
+            const studentRef = doc(db, 'users', studentId);
+            const planRef = doc(db, 'plans', planId);
+            const planSnap = await getDoc(planRef);
+
+            if (!planSnap.exists()) throw new Error(`Plan ${planId} not found.`);
+
+            await updateDoc(studentRef, {
+                credits: increment(parseInt(credits, 10)),
+                currentPlan: {
+                    planId: planId,
+                    planName: planSnap.data().planName,
+                    assignedAt: new Date(),
+                }
+            });
+
+        } catch (error) {
+            console.error("Fulfillment error:", error);
+            return new Response(`Fulfillment error: ${error}`, { status: 500 });
+        }
+    }
+
+    return new Response(JSON.stringify({ received: true }), { status: 200 });
+  }
+);

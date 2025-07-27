@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
+import { NAV_LINKS } from '@/config/nav-links';
 
 export default function Header() {
   const { user, role, loading } = useAuth();
@@ -46,13 +47,8 @@ export default function Header() {
   
   const navLinks = [
     { href: '/#features', label: 'Features', public: true },
-    { href: '/student/tests', label: 'My Tests', public: false, role: 'student' },
-    { href: '/student/submissions', label: 'My Submissions', public: false, role: 'student' },
-    { href: '/trainer/dashboard', label: 'Dashboard', public: false, role: 'trainer' },
-    { href: '/trainer/tests', label: 'Tests', public: false, role: 'trainer' },
-    { href: '/trainer/students', label: 'Students', public: false, role: 'trainer' },
-    { href: '/trainer/submissions', label: 'Submissions', public: false, role: 'trainer' },
-    { href: '/trainer/plans', label: 'Credit Plans', public: false, role: 'trainer' },
+    ...NAV_LINKS.student,
+    ...NAV_LINKS.trainer
   ];
 
   const getInitials = (name?: string | null) => {
@@ -68,17 +64,6 @@ export default function Header() {
             <BookOpen className="h-6 w-6 text-primary" />
             <span className="font-bold font-headline inline-block">IELTS Prep Hub</span>
           </Link>
-          <nav className="hidden md:flex items-center gap-6 text-sm">
-            {navLinks.filter(l => l.public || (l.role === role)).map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="transition-colors hover:text-foreground/80 text-foreground/60"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
         </div>
         <div className="flex flex-1 items-center justify-end space-x-2">
           {!loading && (
@@ -121,7 +106,7 @@ export default function Header() {
                     </DropdownMenuItem>
                      {role === 'trainer' && (
                        <DropdownMenuItem asChild>
-                         <Link href="/trainer/settings">Pricing Settings</Link>
+                         <Link href="/trainer/settings">Trainer Settings</Link>
                        </DropdownMenuItem>
                      )}
                     <DropdownMenuSeparator />
@@ -156,7 +141,7 @@ export default function Header() {
                 <span className="font-bold font-headline">IELTS Prep Hub</span>
               </Link>
               <nav className="flex flex-col gap-4">
-                {navLinks.filter(l => l.public || (l.role === role)).map((link) => (
+                {navLinks.filter(l => (l as any).public || (l as any).role === role).map((link: any) => (
                   <Link
                     key={link.href}
                     href={link.href}

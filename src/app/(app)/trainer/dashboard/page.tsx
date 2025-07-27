@@ -5,26 +5,39 @@ import { useAuth } from '@/contexts/auth-context';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useEffect, useState } from 'react';
-import { collection, query, where, getDocs, Timestamp, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, Timestamp, doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Users, FileText, Clock } from 'lucide-react';
+import { Users, FileText, Clock, BellDot, CheckCircle } from 'lucide-react';
+import Link from 'next/link';
+
+interface Notification {
+    id: string;
+    studentName: string;
+    planName: string;
+    credits: number;
+    studentId: string;
+    planId: string;
+    message: string;
+}
 
 export default function TrainerDashboard() {
   const { user, loading } = useAuth();
+  const { toast } = useToast();
   const [profileCode, setProfileCode] = useState<string | null>(null);
   const [stats, setStats] = useState({
     activeStudents: 0,
     submissionsThisMonth: 0,
     pendingEvaluations: 0,
   });
+  const [paymentNotifications, setPaymentNotifications] = useState<Notification[]>([]);
   const [isDataLoading, setIsDataLoading] = useState(true);
-  const { toast } = useToast();
 
   useEffect(() => {
+    if (loading || !user) return;
+
     const fetchDashboardData = async () => {
-      if (user) {
         setIsDataLoading(true);
         try {
           // Fetch Profile Code
@@ -62,17 +75,24 @@ export default function TrainerDashboard() {
 
           setStats({ activeStudents, submissionsThisMonth, pendingEvaluations });
 
+          // Fetch Payment Notifications
+          const notificationsQuery = query(
+            collection(db, 'notifications'), 
+            where('recipientId', '==', user.uid),
+            where('type', '==', 'manual_payment_proof')
+          );
+          const notificationsSnapshot = await getDocs(notificationsQuery);
+          setPaymentNotifications(notificationsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification)));
+
         } catch (error) {
           console.error("Error fetching dashboard data:", error);
           toast({ variant: 'destructive', title: 'Error', description: 'Could not load dashboard data.' });
         } finally {
           setIsDataLoading(false);
         }
-      }
     };
-    if (!loading) {
-      fetchDashboardData();
-    }
+    
+    fetchDashboardData();
   }, [user, loading, toast]);
 
 
@@ -85,6 +105,30 @@ export default function TrainerDashboard() {
       });
     }
   };
+
+  const handleConfirmPayment = async (notification: Notification) => {
+    try {
+        const studentRef = doc(db, 'users', notification.studentId);
+        await updateDoc(studentRef, {
+            credits: increment(notification.credits),
+            currentPlan: {
+                planId: notification.planId,
+                planName: notification.planName,
+                assignedAt: new Date(),
+            }
+        });
+
+        // Delete the notification
+        await deleteDoc(doc(db, 'notifications', notification.id));
+
+        setPaymentNotifications(prev => prev.filter(n => n.id !== notification.id));
+        toast({ title: 'Success', description: `Credits assigned to ${notification.studentName}.` });
+    } catch (error) {
+        console.error(error);
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to assign credits.' });
+    }
+  };
+
 
   if (loading) {
      return (
@@ -118,6 +162,29 @@ export default function TrainerDashboard() {
             <p className="text-muted-foreground">Here's a snapshot of your activity.</p>
         </div>
 
+        {paymentNotifications.length > 0 && (
+            <Card className="border-amber-500/50 bg-amber-500/5">
+                <CardHeader>
+                    <div className="flex items-center gap-3">
+                        <BellDot className="text-amber-600" />
+                        <CardTitle className="text-amber-700">Manual Payment Verification</CardTitle>
+                    </div>
+                    <CardDescription>Review these payments and assign credits manually once you've confirmed receipt.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                    {paymentNotifications.map(n => (
+                        <div key={n.id} className="flex items-center justify-between p-3 bg-background rounded-md border">
+                            <p className="text-sm">{n.message}</p>
+                            <Button size="sm" onClick={() => handleConfirmPayment(n)}>
+                                <CheckCircle className="mr-2 h-4 w-4" />
+                                Confirm & Assign Credits
+                            </Button>
+                        </div>
+                    ))}
+                </CardContent>
+            </Card>
+        )}
+
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <StatCard title="Active Students" value={stats.activeStudents} icon={<Users />} isLoading={isDataLoading} />
             <StatCard title="Submissions This Month" value={stats.submissionsThisMonth} icon={<FileText />} isLoading={isDataLoading} />
@@ -145,7 +212,7 @@ export default function TrainerDashboard() {
 
 interface StatCardProps {
     title: string;
-    value: number;
+    value: number | string;
     icon: React.ReactNode;
     isLoading: boolean;
 }
@@ -165,3 +232,4 @@ function StatCard({ title, value, icon, isLoading }: StatCardProps) {
         </Card>
     );
 }
+
