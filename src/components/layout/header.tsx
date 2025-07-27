@@ -1,9 +1,27 @@
+"use client";
+
 import Link from 'next/link';
 import { BookOpen, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { useAuth } from '@/contexts/auth-context';
+import { auth } from '@/lib/firebase';
+import { signOut } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
 
 export default function Header() {
+  const { user, role, loading } = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      router.push('/login');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+  
   const navLinks = [
     { href: '#features', label: 'Features' },
     { href: '#', label: 'Pricing' },
@@ -31,8 +49,29 @@ export default function Header() {
           </nav>
         </div>
         <div className="flex flex-1 items-center justify-end space-x-2">
-          <Button variant="ghost">Log In</Button>
-          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">Sign Up</Button>
+          {!loading && (
+            <>
+              {user ? (
+                <>
+                  <Button variant="ghost" asChild>
+                    <Link href={role === 'trainer' ? '/trainer/dashboard' : '/student/dashboard'}>
+                      Dashboard
+                    </Link>
+                  </Button>
+                  <Button onClick={handleLogout}>Logout</Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="ghost" asChild>
+                    <Link href="/login">Log In</Link>
+                  </Button>
+                  <Button asChild>
+                    <Link href="/register">Sign Up</Link>
+                  </Button>
+                </>
+              )}
+            </>
+          )}
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="outline" size="icon" className="md:hidden">
