@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -8,14 +9,14 @@ import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebas
 import { storage } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { Upload, X } from 'lucide-react';
+import TiptapEditor from './tiptap-editor';
 
 
 const formSchema = z.object({
@@ -66,9 +67,8 @@ export function TestForm({ initialData, onSave }: TestFormProps) {
   const handleImageUpload = (file: File) => {
     if (!file) return;
 
-    // Check if there's already an image and remove it first
     if (questionImageUrl) {
-        handleRemoveImage(false); // Don't show toast on auto-remove
+        handleRemoveImage(false); 
     }
 
     setIsUploading(true);
@@ -84,7 +84,7 @@ export function TestForm({ initialData, onSave }: TestFormProps) {
       },
       (error) => {
         console.error("Upload failed:", error);
-        toast({ variant: 'destructive', title: 'Upload Failed', description: 'Could not upload image.' });
+        toast({ variant: 'destructive', title: 'Upload Failed', description: 'Could not upload image. Check storage rules.' });
         setIsUploading(false);
       },
       () => {
@@ -118,7 +118,6 @@ export function TestForm({ initialData, onSave }: TestFormProps) {
   const onSubmit = (data: TestFormValues) => {
     setIsSubmitting(true);
     onSave(data);
-    // isSubmitting will be reset by parent component logic (e.g., on redirect or error)
   };
 
   return (
@@ -150,7 +149,7 @@ export function TestForm({ initialData, onSave }: TestFormProps) {
                         Enter the full test question. You can use an image for charts or graphs below.
                       </FormDescription>
                       <FormControl>
-                        <Textarea placeholder="Some people believe that technology has made our lives more complex, while others think it has simplified them. Discuss both views and give your own opinion." className="min-h-[150px]" {...field} />
+                        <TiptapEditor content={field.value} onChange={field.onChange} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
