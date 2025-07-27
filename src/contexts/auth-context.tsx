@@ -88,11 +88,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (isPublicPage) return;
 
     const isAuthPage = pathname === '/login' || pathname === '/register';
-    const isProtectedStudentPage = pathname.startsWith('/student') || pathname.startsWith('/tests') || pathname.startsWith('/submissions');
+    const isProtectedStudentPage = pathname.startsWith('/student') || pathname.startsWith('/tests');
     const isProtectedTrainerPage = pathname.startsWith('/trainer');
     const isProfilePage = pathname.startsWith('/profile');
+    const isSubmissionPage = pathname.startsWith('/submissions');
 
-    if (!user && (isProtectedStudentPage || isProtectedTrainerPage || isProfilePage)) {
+
+    if (!user && (isProtectedStudentPage || isProtectedTrainerPage || isProfilePage || isSubmissionPage)) {
       router.push('/login');
       return;
     }
