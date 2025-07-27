@@ -2,9 +2,9 @@
 'use client';
 
 import { useAuth } from '@/contexts/auth-context';
-import { SidebarProvider, Sidebar, SidebarInset } from '@/components/ui/sidebar';
+import { SidebarProvider, Sidebar } from '@/components/ui/sidebar';
 import AppSidebar from '@/components/layout/app-sidebar';
-import AppHeader from '@/components/layout/app-header';
+import Header from '@/components/layout/header';
 import { usePathname } from 'next/navigation';
 
 export default function AppLayout({
@@ -44,7 +44,7 @@ export default function AppLayout({
         <AppSidebar role={role} />
       </Sidebar>
       <div className="flex flex-col w-full">
-         <AppHeader />
+         <Header />
          <main className="flex-1 overflow-y-auto bg-muted/40">
            {children}
          </main>
