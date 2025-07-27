@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useEffect, useState } from 'react';
-import { collection, query, where, getDocs, Timestamp, doc, getDoc, updateDoc, increment, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, Timestamp, doc, getDoc, updateDoc, increment, deleteDoc, runTransaction, serverTimestamp, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -14,7 +14,6 @@ import Link from 'next/link';
 
 interface Notification {
     id: string;
-    studentName: string;
     message: string;
     context: {
         studentId: string;
@@ -114,19 +113,41 @@ export default function TrainerDashboard() {
         toast({ variant: 'destructive', title: 'Error', description: 'Notification data is missing. Cannot process payment.' });
         return;
     }
+
     try {
         const studentRef = doc(db, 'users', notification.context.studentId);
-        await updateDoc(studentRef, {
-            credits: increment(notification.context.credits),
-            currentPlan: {
-                planId: notification.context.planId,
-                planName: notification.context.planName,
-                assignedAt: new Date(),
+        await runTransaction(db, async (transaction) => {
+            const studentSnap = await transaction.get(studentRef);
+            if (!studentSnap.exists()) {
+                throw new Error("Student not found.");
             }
-        });
+            const studentData = studentSnap.data();
+            const newBalance = (studentData.credits || 0) + notification.context.credits;
 
-        // Delete the notification
-        await deleteDoc(doc(db, 'notifications', notification.id));
+            // Update student's credits and current plan
+            transaction.update(studentRef, {
+                credits: newBalance,
+                currentPlan: {
+                    planId: notification.context.planId,
+                    planName: notification.context.planName,
+                    assignedAt: new Date(),
+                }
+            });
+
+            // Log the transaction
+            const transactionRef = collection(db, 'users', notification.context.studentId, 'credit_transactions');
+            transaction.set(doc(transactionRef), {
+                type: 'purchase',
+                amount: notification.context.credits,
+                description: `Manual payment confirmed for ${notification.context.planName}`,
+                balance_after: newBalance,
+                createdAt: serverTimestamp(),
+            });
+
+            // Delete the notification
+            const notifRef = doc(db, 'notifications', notification.id);
+            transaction.delete(notifRef);
+        });
 
         setPaymentNotifications(prev => prev.filter(n => n.id !== notification.id));
         toast({ title: 'Success', description: `Credits assigned to ${notification.context.studentName}.` });

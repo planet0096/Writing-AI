@@ -10,7 +10,7 @@
 import { ai } from '@/ai/genkit';
 import { db } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
-import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, increment, runTransaction, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { z } from 'zod';
 import Stripe from 'stripe';
 
@@ -165,19 +165,43 @@ export const stripeWebhook = ai.defineFlow<Request, Response>(
         try {
             const studentRef = doc(db, 'users', studentId);
             const planRef = doc(db, 'plans', planId);
-            const planSnap = await getDoc(planRef);
+            
+            await runTransaction(db, async (transaction) => {
+                const [studentSnap, planSnap] = await Promise.all([
+                    transaction.get(studentRef),
+                    transaction.get(planRef),
+                ]);
 
-            if (!planSnap.exists()) throw new Error(`Plan ${planId} not found.`);
+                if (!studentSnap.exists()) throw new Error(`Student ${studentId} not found.`);
+                if (!planSnap.exists()) throw new Error(`Plan ${planId} not found.`);
 
-            await updateDoc(studentRef, {
-                credits: increment(parseInt(credits, 10)),
-                currentPlan: {
-                    planId: planId,
-                    planName: planSnap.data().planName,
-                    assignedAt: new Date(),
-                }
+                const planData = planSnap.data();
+                const studentData = studentSnap.data();
+                const creditsToAdd = parseInt(credits, 10);
+                const newBalance = (studentData.credits || 0) + creditsToAdd;
+
+                // Update student document
+                transaction.update(studentRef, {
+                    credits: newBalance,
+                    currentPlan: {
+                        planId: planId,
+                        planName: planData.planName,
+                        assignedAt: new Date(),
+                    }
+                });
+
+                // Create a credit transaction log
+                const transactionRef = collection(db, 'users', studentId, 'credit_transactions');
+                transaction.set(doc(transactionRef), {
+                    type: 'purchase',
+                    amount: creditsToAdd,
+                    description: `Purchased: ${planData.planName}`,
+                    balance_after: newBalance,
+                    createdAt: serverTimestamp(),
+                });
             });
-             console.log(`Successfully fulfilled plan ${planId} for student ${studentId}.`);
+
+            console.log(`Successfully fulfilled plan ${planId} for student ${studentId}.`);
 
         } catch (error) {
             console.error("Fulfillment error:", error);

@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, increment, collection, addDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,14 @@ interface Trainer {
   };
 }
 
+interface Submission {
+    testId: string;
+}
+
+interface Test {
+    title: string;
+}
+
 export default function EvaluateSubmissionPage() {
   const router = useRouter();
   const params = useParams();
@@ -31,6 +39,8 @@ export default function EvaluateSubmissionPage() {
 
   const [trainer, setTrainer] = useState<Trainer | null>(null);
   const [studentCredits, setStudentCredits] = useState(0);
+  const [submission, setSubmission] = useState<Submission | null>(null);
+  const [test, setTest] = useState<Test | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,23 +50,37 @@ export default function EvaluateSubmissionPage() {
 
     const fetchRequiredData = async () => {
       try {
-        // Fetch student's data including assignedTrainerId
         const studentRef = doc(db, 'users', user.uid);
-        const studentSnap = await getDoc(studentRef);
+        const subRef = doc(db, 'submissions', submissionId);
+
+        const [studentSnap, subSnap] = await Promise.all([
+          getDoc(studentRef),
+          getDoc(subRef)
+        ]);
+        
         if (!studentSnap.exists()) throw new Error("Student data not found.");
+        if (!subSnap.exists()) throw new Error("Submission not found.");
         
         const studentData = studentSnap.data();
+        const subData = subSnap.data() as Submission;
         const trainerId = studentData.assignedTrainerId;
+        
         setStudentCredits(studentData.credits || 0);
+        setSubmission(subData);
 
         if (!trainerId) throw new Error("No trainer assigned.");
 
-        // Fetch trainer's pricing data
-        const trainerRef = doc(db, 'users', trainerId);
-        const trainerSnap = await getDoc(trainerRef);
+        const testRef = doc(db, 'tests', subData.testId);
+        const [trainerSnap, testSnap] = await Promise.all([
+          getDoc(doc(db, 'users', trainerId)),
+          getDoc(testRef)
+        ]);
+
         if (!trainerSnap.exists()) throw new Error("Trainer data not found.");
+        if (!testSnap.exists()) throw new Error("Test data not found.");
 
         setTrainer({ id: trainerSnap.id, ...trainerSnap.data() } as Trainer);
+        setTest(testSnap.data() as Test);
 
       } catch (err: any) {
         setError(err.message);
@@ -67,15 +91,15 @@ export default function EvaluateSubmissionPage() {
     };
 
     fetchRequiredData();
-  }, [user, authLoading, toast]);
+  }, [user, authLoading, toast, submissionId]);
   
   const handleEvaluationRequest = async (type: 'ai' | 'manual') => {
-      if (!user || !trainer) return;
+      if (!user || !trainer || !test) return;
       
       const cost = type === 'ai' ? trainer.pricing.aiEvaluationCost : trainer.pricing.trainerEvaluationCost;
       
       if(studentCredits < cost) {
-          setError("You do not have enough credits for this evaluation. Please contact your trainer.");
+          setError("You do not have enough credits for this evaluation. Please purchase more or contact your trainer.");
           return;
       }
 
@@ -83,20 +107,40 @@ export default function EvaluateSubmissionPage() {
       setError(null);
       
       try {
-        // 1. Deduct credits
         const studentRef = doc(db, 'users', user.uid);
-        await updateDoc(studentRef, {
-            credits: increment(-cost)
-        });
-
-        // 2. Update submission with evaluation type
         const submissionRef = doc(db, 'submissions', submissionId);
-        await updateDoc(submissionRef, {
-            evaluationType: type,
-            trainerId: trainer.id, // Ensure trainerId is on the submission
+        
+        await runTransaction(db, async (transaction) => {
+            const studentSnap = await transaction.get(studentRef);
+            if (!studentSnap.exists()) throw new Error("Student data not found.");
+            
+            const currentCredits = studentSnap.data().credits || 0;
+            if (currentCredits < cost) {
+                throw new Error("You do not have enough credits for this evaluation.");
+            }
+            const newBalance = currentCredits - cost;
+
+            // 1. Deduct credits and update student document
+            transaction.update(studentRef, { credits: newBalance });
+
+            // 2. Create a credit transaction log
+            const transactionLogRef = collection(db, 'users', user.uid, 'credit_transactions');
+            transaction.set(doc(transactionLogRef), {
+                type: 'spend',
+                amount: -cost,
+                description: `${type === 'ai' ? 'AI' : 'Trainer'} Evaluation for "${test.title}"`,
+                balance_after: newBalance,
+                createdAt: serverTimestamp(),
+            });
+
+            // 3. Update submission with evaluation type
+            transaction.update(submissionRef, {
+                evaluationType: type,
+                trainerId: trainer.id,
+            });
         });
 
-        // 3. If AI, trigger the evaluation flow
+        // 4. If AI, trigger the evaluation flow (outside transaction)
         if(type === 'ai') {
             await evaluateSubmission({ submissionId, trainerId: trainer.id });
         }
@@ -108,10 +152,11 @@ export default function EvaluateSubmissionPage() {
         
         router.push(`/student/submissions`);
           
-      } catch (err) {
+      } catch (err: any) {
           console.error("Evaluation request failed: ", err);
-          toast({ variant: 'destructive', title: 'Processing Failed', description: 'Could not process your request. Please try again.'});
-          // Note: In a real app, you'd want a rollback mechanism if credit deduction succeeds but the next steps fail.
+          setError(err.message);
+          toast({ variant: 'destructive', title: 'Processing Failed', description: err.message || 'Could not process your request.'});
+          // Note: Firestore transactions are atomic, so no rollback is needed.
       } finally {
           setIsProcessing(false);
       }

@@ -4,17 +4,19 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, increment, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { User, MoreHorizontal, ShieldOff, ShieldCheck, UserX, PlusCircle } from 'lucide-react';
+import { User, MoreHorizontal, ShieldOff, ShieldCheck, UserX, PlusCircle, Eye } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 interface Student {
   id: string;
@@ -33,6 +35,7 @@ interface Plan {
 
 export default function StudentManagementPage() {
   const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const { toast } = useToast();
   const [students, setStudents] = useState<Student[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -102,13 +105,33 @@ export default function StudentManagementPage() {
 
     try {
         const studentRef = doc(db, 'users', selectedStudent.id);
-        await updateDoc(studentRef, {
-            currentPlan: {
-                planId: plan.id,
-                planName: plan.planName,
-                assignedAt: serverTimestamp(),
-            },
-            credits: increment(plan.credits)
+        
+        await runTransaction(db, async (transaction) => {
+            const studentSnap = await transaction.get(studentRef);
+            if (!studentSnap.exists()) throw new Error("Student not found.");
+            
+            const studentData = studentSnap.data();
+            const newBalance = (studentData.credits || 0) + plan.credits;
+            
+            // Update student document
+            transaction.update(studentRef, {
+                currentPlan: {
+                    planId: plan.id,
+                    planName: plan.planName,
+                    assignedAt: serverTimestamp(),
+                },
+                credits: newBalance,
+            });
+
+            // Create credit transaction log
+            const transactionRef = collection(db, 'users', selectedStudent.id, 'credit_transactions');
+            transaction.set(doc(transactionRef), {
+                type: 'purchase',
+                amount: plan.credits,
+                description: `Assigned plan: ${plan.planName}`,
+                balance_after: newBalance,
+                createdAt: serverTimestamp(),
+            });
         });
         
         setStudents(prevStudents =>
@@ -169,6 +192,9 @@ export default function StudentManagementPage() {
                       <TableCell className="font-semibold">{student.credits}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end items-center gap-2">
+                           <Button size="sm" variant="outline" onClick={() => router.push(`/trainer/students/${student.id}`)}>
+                                <Eye className="mr-2 h-4 w-4"/> View Details
+                           </Button>
                            <Dialog onOpenChange={(open) => !open && setSelectedStudent(null)}>
                               <DialogTrigger asChild>
                                   <Button size="sm" variant="outline" onClick={() => setSelectedStudent(student)}>
