@@ -1,0 +1,83 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+  
+    // Default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    // USERS
+    // Users can read their own data.
+    // Users can update their own non-sensitive data.
+    // Anyone can create a user (for signup).
+    match /users/{userId} {
+      allow read: if request.auth.uid == userId;
+      allow update: if request.auth.uid == userId 
+                    && !('role' in request.resource.data) 
+                    && !('credits' in request.resource.data)
+                    && !('assignedTrainerId' in request.resource.data && request.resource.data.assignedTrainerId != resource.data.assignedTrainerId);
+      allow create: if request.auth.uid == userId;
+
+      // Allow trainers to update specific fields on their students
+      allow update: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'trainer'
+                    && resource.data.assignedTrainerId == request.auth.uid
+                    && request.resource.data.keys().hasOnly(['credits', 'currentPlan', 'accountStatus', 'assignedTrainerId']);
+                    
+      // Secure API key storage
+      match /private_details/api_settings {
+        allow read, write: if request.auth.uid == userId;
+      }
+    }
+    
+    // TESTS
+    // Allow logged-in users to read tests.
+    // Allow trainers to create, update, and delete their own tests.
+    match /tests/{testId} {
+        allow read: if request.auth != null;
+        allow create, update, delete: if request.auth != null && request.resource.data.trainerId == request.auth.uid;
+    }
+
+    // SUBMISSIONS
+    // Students can create submissions.
+    // Students can read their own submissions.
+    // Trainers can read submissions made to them.
+    // Students can update evaluation type after creation.
+    // Trainers can update feedback on submissions to them.
+    match /submissions/{submissionId} {
+        allow create: if request.auth != null && request.resource.data.studentId == request.auth.uid;
+        allow read: if request.auth != null && (resource.data.studentId == request.auth.uid || resource.data.trainerId == request.auth.uid);
+        allow update: if request.auth != null && (
+                        (resource.data.studentId == request.auth.uid && request.resource.data.keys().hasOnly(['evaluationType'])) ||
+                        (resource.data.trainerId == request.auth.uid && request.resource.data.keys().hasOnly(['feedback', 'status', 'evaluatedAt', 'trainerNotes']))
+                      );
+        
+        // Conversation thread on submissions
+        match /feedback_thread/{messageId} {
+            allow read: if request.auth != null && (resource.data.authorId == request.auth.uid || get(/databases/$(database)/documents/submissions/$(submissionId)).data.trainerId == request.auth.uid);
+            allow create: if request.auth != null && request.resource.data.authorId == request.auth.uid && (get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId == request.auth.uid || get(/databases/$(database)/documents/submissions/$(submissionId)).data.trainerId == request.auth.uid);
+        }
+    }
+
+    // PLANS
+    // Trainers can manage their own plans.
+    // Students can read plans of their assigned trainer.
+    match /plans/{planId} {
+        allow create, update, delete: if request.auth != null && request.resource.data.trainerId == request.auth.uid;
+        allow read: if request.auth != null && (
+                      (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student' && resource.data.trainerId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.assignedTrainerId) ||
+                      (resource.data.trainerId == request.auth.uid)
+                    );
+    }
+    
+    // NOTIFICATIONS
+    // Users can read their own notifications.
+    // Students can create notifications for their trainers (manual payment proof).
+    match /notifications/{notificationId} {
+      allow read, delete: if request.auth != null && resource.data.recipientId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.type == 'manual_payment_proof';
+    }
+  }
+}

@@ -1,61 +1,70 @@
 
-
 "use client";
 
-import { SidebarNav } from "@/app/profile/_components/sidebar-nav";
+import { usePathname } from 'next/navigation';
 import { Separator } from "@/components/ui/separator";
-import { Shield, CreditCard, Gem } from "lucide-react";
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
+import { Shield, CreditCard, Gem, KeyRound } from 'lucide-react';
+
 
 const sidebarNavItems = [
   {
-    title: "Pricing",
+    title: "Account",
     href: "/trainer/settings",
+    icon: <Shield />,
+  },
+  {
+    title: "Evaluation Pricing",
+    href: "/trainer/settings/pricing",
     icon: <Gem />,
   },
   {
-    title: "Payments",
+    title: "Payment Methods",
     href: "/trainer/settings/payments",
     icon: <CreditCard />,
   },
-   {
-    title: "Account",
-    href: "/profile",
-    icon: <Shield />,
+  {
+    title: "Gemini API Key",
+    href: "/trainer/settings/api-key",
+    icon: <KeyRound />,
   },
 ];
+
 
 interface SettingsLayoutProps {
   children: React.ReactNode;
 }
 
 export default function SettingsLayout({ children }: SettingsLayoutProps) {
+  const pathname = usePathname();
+
   return (
-    <>
+      <div className="p-4 sm:p-6 lg:p-8 space-y-6">
         <div className="space-y-0.5">
-          <h2 className="text-2xl font-bold font-headline">Trainer Settings</h2>
+          <h2 className="text-2xl font-bold text-slate-800">Trainer Settings</h2>
           <p className="text-muted-foreground">
-            Manage your trainer account settings and payment configurations.
+            Manage your account settings, pricing, payments, and API keys.
           </p>
         </div>
-        <Separator className="my-6" />
-        <div className="flex flex-col space-y-8 lg:flex-row lg:space-x-12 lg:space-y-0">
-          <aside className="-mx-4 lg:w-1/5">
-             <nav className="flex space-x-2 lg:flex-col lg:space-x-0 lg:space-y-1">
-                {sidebarNavItems.map((item) => (
-                    <Link
-                    key={item.href}
-                    href={item.href}
-                     className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-                    >
-                    {item.icon}
-                    {item.title}
-                    </Link>
-                ))}
-            </nav>
-          </aside>
-          <div className="flex-1">{children}</div>
-        </div>
-    </>
+        
+        <nav className="flex border-b">
+          {sidebarNavItems.map((item) => (
+             <Link 
+                key={item.href} 
+                href={item.href} 
+                className={cn(
+                    "flex items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground hover:text-primary",
+                    pathname === item.href && "border-b-2 border-primary text-primary"
+                )}
+             >
+                {item.icon}
+                {item.title}
+             </Link>
+          ))}
+        </nav>
+
+        <div className="flex-1 mt-6">{children}</div>
+      </div>
   );
 }

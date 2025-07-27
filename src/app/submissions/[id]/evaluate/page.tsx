@@ -92,12 +92,13 @@ export default function EvaluateSubmissionPage() {
         // 2. Update submission with evaluation type
         const submissionRef = doc(db, 'submissions', submissionId);
         await updateDoc(submissionRef, {
-            evaluationType: type
+            evaluationType: type,
+            trainerId: trainer.id, // Ensure trainerId is on the submission
         });
 
         // 3. If AI, trigger the evaluation flow
         if(type === 'ai') {
-            await evaluateSubmission({ submissionId });
+            await evaluateSubmission({ submissionId, trainerId: trainer.id });
         }
 
         toast({
@@ -194,4 +195,3 @@ export default function EvaluateSubmissionPage() {
     </div>
   );
 }
-

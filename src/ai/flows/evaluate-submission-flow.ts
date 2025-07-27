@@ -7,12 +7,41 @@
  * - EvaluateSubmissionInput - The input type for the evaluation flow.
  */
 import { ai } from '@/ai/genkit';
+import { configureGenkit } from 'genkit';
+import { googleAI, GeminiFlash } from '@genkit-ai/googleai';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { z } from 'zod';
 
+
+// A plugin to dynamically provide the API key
+const dynamicApiKeyPlugin = (getApiKey: () => Promise<string | undefined>) => {
+  return {
+    name: 'dynamic-api-key-plugin',
+    async onInit() {},
+    async onFlow(flow, payload, stream) {
+      const apiKey = await getApiKey();
+      if (!apiKey) {
+        // Let Genkit handle the error for missing API key if it still can't find one.
+        return;
+      }
+      // Re-configure the googleAI plugin for this flow execution
+      configureGenkit({
+        plugins: [
+          googleAI({ apiKey: apiKey }),
+        ],
+        flowStateStore: 'firebase',
+        traceStore: 'firebase',
+        cacheStore: 'firebase'
+      });
+    },
+  };
+};
+
+
 const EvaluateSubmissionInputSchema = z.object({
   submissionId: z.string().describe('The ID of the submission document in Firestore.'),
+  trainerId: z.string().describe('The ID of the trainer to use for API key retrieval.')
 });
 export type EvaluateSubmissionInput = z.infer<typeof EvaluateSubmissionInputSchema>;
 
@@ -72,6 +101,18 @@ const evaluateSubmissionFlow = ai.defineFlow(
     name: 'evaluateSubmissionFlow',
     inputSchema: EvaluateSubmissionInputSchema,
     outputSchema: z.void(),
+    plugins: [
+        dynamicApiKeyPlugin(async () => {
+          // This relies on the payload to contain the trainerId
+          const payload = (evaluateSubmissionFlow as any).getPayload();
+          if (!payload || !payload.trainerId) {
+            return process.env.GEMINI_API_KEY;
+          }
+          const trainerSettingsRef = doc(db, 'users', payload.trainerId, 'private_details', 'api_settings');
+          const settingsSnap = await getDoc(trainerSettingsRef);
+          return settingsSnap.exists() ? settingsSnap.data().geminiApiKey : process.env.GEMINI_API_KEY;
+        })
+    ]
   },
   async ({ submissionId }) => {
     // 1. Fetch submission and test data from Firestore
