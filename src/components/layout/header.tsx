@@ -27,8 +27,8 @@ export default function Header() {
     { href: '#features', label: 'Features', public: true },
     { href: '/student/tests', label: 'My Tests', public: false, role: 'student' },
     { href: '/trainer/tests', label: 'My Tests', public: false, role: 'trainer' },
-    { href: '#', label: 'Pricing', public: true },
-    { href: '#', label: 'Contact', public: true },
+    { href: '#pricing', label: 'Pricing', public: true },
+    { href: '#contact', label: 'Contact', public: true },
   ];
 
   return (
