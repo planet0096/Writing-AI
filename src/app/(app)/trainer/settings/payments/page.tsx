@@ -47,7 +47,10 @@ export default function PaymentSettingsPage() {
       const docSnap = await getDoc(settingsRef);
       if (docSnap.exists()) {
         const data = docSnap.data().paymentSettings || {};
-        form.reset(data);
+        form.reset({
+            bankDetails: data.bankDetails || '',
+            paypalEmail: data.paypalEmail || '',
+        });
         setStripeOnboardingComplete(data.stripeOnboardingComplete || false);
       }
       setIsLoading(false);
