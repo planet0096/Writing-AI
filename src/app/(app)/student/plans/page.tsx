@@ -108,14 +108,14 @@ export default function StudentPlansPage() {
             await addDoc(collection(db, 'notifications'), {
                 recipientId: assignedTrainerId,
                 type: 'manual_payment_proof',
-                message: `${user.displayName} has indicated they've paid for the "${plan.planName}" plan.`,
+                message: `${user.displayName || 'A student'} has indicated they've paid for the "${plan.planName}" plan.`,
                 link: `/trainer/students`,
                 isRead: false,
                 createdAt: serverTimestamp(),
                  // Add context for the trainer
                 context: {
                     studentId: user.uid,
-                    studentName: user.displayName,
+                    studentName: user.displayName || 'Unknown Student',
                     planId: plan.id,
                     planName: plan.planName,
                     credits: plan.credits,
