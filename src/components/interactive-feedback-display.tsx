@@ -27,6 +27,7 @@ interface Feedback {
         suggestions: string[];
     }[];
     highlightedAnswer: string;
+    trainerNotes?: string;
 }
 
 const descriptorColorMap: Record<string, string> = {
@@ -36,16 +37,15 @@ const descriptorColorMap: Record<string, string> = {
     "Grammatical Range and Accuracy": "underline-red-500",
 };
 
-export const parseErrorString = (htmlString: string) => {
-    if (typeof window === 'undefined') return []; // Don't run on server
+const parseErrorString = (htmlString: string) => {
+    if (typeof window === 'undefined') return [];
 
     const parts = [];
-    const regex = /<error (.*?)>(.*?)<\/error>/g;
+    const regex = /<error (.*?)>(.*?)<\/error>/gs;
     let lastIndex = 0;
     let match;
 
     while ((match = regex.exec(htmlString)) !== null) {
-        // Text before the tag
         if (match.index > lastIndex) {
             parts.push(htmlString.substring(lastIndex, match.index));
         }
@@ -53,7 +53,6 @@ export const parseErrorString = (htmlString: string) => {
         const attrsString = match[1];
         const text = match[2];
 
-        // Parse attributes
         const attrs = Array.from(attrsString.matchAll(/(\w+)="(.*?)"/g)).reduce((acc, attrMatch) => {
             acc[attrMatch[1]] = attrMatch[2];
             return acc;
@@ -70,7 +69,6 @@ export const parseErrorString = (htmlString: string) => {
         lastIndex = regex.lastIndex;
     }
 
-    // Text after the last tag
     if (lastIndex < htmlString.length) {
         parts.push(htmlString.substring(lastIndex));
     }
@@ -134,3 +132,5 @@ export default function InteractiveFeedbackDisplay({ feedback }: { feedback: Fee
         </TooltipProvider>
     );
 }
+
+InteractiveFeedbackDisplay.parseErrorString = parseErrorString;

@@ -2,19 +2,38 @@
 "use client";
 
 import Link from 'next/link';
-import { BookOpen, Menu, User } from 'lucide-react';
+import { BookOpen, Menu, User, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useAuth } from '@/contexts/auth-context';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { useEffect, useState } from 'react';
 
 export default function Header() {
   const { user, role, loading } = useAuth();
   const router = useRouter();
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const notificationsQuery = query(
+      collection(db, 'notifications'),
+      where('recipientId', '==', user.uid),
+      where('isRead', '==', false)
+    );
+
+    const unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
+      setUnreadNotifications(snapshot.size);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   const handleLogout = async () => {
     try {
@@ -65,6 +84,16 @@ export default function Header() {
           {!loading && (
             <>
               {user ? (
+                <>
+                 <Button variant="ghost" size="icon" className="relative">
+                    <Bell className="h-5 w-5" />
+                    {unreadNotifications > 0 && (
+                      <span className="absolute top-1 right-1 flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                      </span>
+                    )}
+                  </Button>
                  <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="relative h-8 w-8 rounded-full">
@@ -101,6 +130,7 @@ export default function Header() {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+                </>
               ) : (
                 <>
                   <Button variant="ghost" asChild>
