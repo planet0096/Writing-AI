@@ -2,10 +2,11 @@
 "use client";
 
 import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-import { onAuthStateChanged, User } from 'firebase/auth';
+import { onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { useRouter, usePathname } from 'next/navigation';
+import { useToast } from '@/hooks/use-toast';
 
 interface AuthContextType {
   user: User | null;
@@ -28,12 +29,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
+  const { toast } = useToast();
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // User is signed in, set up a real-time listener for their document
         const docRef = doc(db, 'users', user.uid);
+        
+        // Check for blocked status before proceeding
+        const initialDocSnap = await getDoc(docRef);
+        if (initialDocSnap.exists() && initialDocSnap.data().accountStatus === 'blocked') {
+            toast({
+                variant: 'destructive',
+                title: 'Account Blocked',
+                description: 'Your account is currently blocked. Please contact your trainer.',
+            });
+            await signOut(auth); // Sign out the user
+            setUser(null);
+            setRole(null);
+            setLoading(false);
+            router.push('/login');
+            return;
+        }
+
         const unsubscribeFirestore = onSnapshot(docRef, (docSnap) => {
           if (docSnap.exists()) {
             const userData = docSnap.data();
@@ -41,23 +59,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             if (userData.role === 'student') {
               setAssignedTrainerId(userData.assignedTrainerId || null);
             }
-          }
-          // The user object from onAuthStateChanged might be stale,
-          // so we create a new object with the latest auth state and firestore data
-          // This is a bit of a hack to get the UI to update with profile changes
-           setUser({
+             setUser({
               ...user,
-              displayName: docSnap.data()?.name || user.displayName,
-              photoURL: docSnap.data()?.photoURL || user.photoURL,
+              displayName: userData.name || user.displayName,
+              photoURL: userData.photoURL || user.photoURL,
            });
+          }
            setLoading(false);
         });
 
-        // Return a cleanup function for the Firestore listener
         return () => unsubscribeFirestore();
 
       } else {
-        // User is signed out
         setUser(null);
         setRole(null);
         setAssignedTrainerId(null);
@@ -65,9 +78,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     });
 
-    // Return a cleanup function for the auth state listener
     return () => unsubscribeAuth();
-  }, []);
+  }, [router, toast]);
   
     useEffect(() => {
     if (loading) return;
@@ -76,23 +88,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (isPublicPage) return;
 
     const isAuthPage = pathname === '/login' || pathname === '/register';
-    const isProtectedStudentPage = pathname.startsWith('/student') || pathname.startsWith('/tests');
+    const isProtectedStudentPage = pathname.startsWith('/student') || pathname.startsWith('/tests') || pathname.startsWith('/submissions');
     const isProtectedTrainerPage = pathname.startsWith('/trainer');
     const isProfilePage = pathname.startsWith('/profile');
 
-    // If trying to access a protected page while logged out, redirect to login
     if (!user && (isProtectedStudentPage || isProtectedTrainerPage || isProfilePage)) {
       router.push('/login');
       return;
     }
 
     if (user) {
-      // If on an auth page while logged in, redirect to dashboard
       if (isAuthPage) {
         if (role === 'student') router.push('/student/dashboard');
         if (role === 'trainer') router.push('/trainer/dashboard');
       } 
-      // Role-based protection for dashboard pages
       else if (isProtectedStudentPage && role !== 'student') {
         router.push('/trainer/dashboard'); 
       } else if (isProtectedTrainerPage && role !== 'trainer') {
