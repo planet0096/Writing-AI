@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/auth-context';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,12 +11,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import Image from 'next/image';
-import { Separator } from '@/components/ui/separator';
 
 interface Submission {
   testId: string;
   studentAnswer: string;
   feedback?: string;
+  studentId: string;
+  trainerId?: string;
 }
 
 interface Test {
@@ -51,12 +52,15 @@ export default function SubmissionResultPage() {
         
         const subData = subSnap.data() as Submission;
 
-        // Basic authorization check
-        if(role === 'student' && subSnap.data().studentId !== user.uid) {
+        // Authorization check
+        if (role === 'student' && subData.studentId !== user.uid) {
             throw new Error("You are not authorized to view this submission.");
         }
-         if(role === 'trainer' && subSnap.data().trainerId !== user.uid) {
-            throw new Error("You are not authorized to view this submission.");
+        if (role === 'trainer') {
+            const studentDoc = await getDoc(doc(db, 'users', subData.studentId));
+            if (!studentDoc.exists() || studentDoc.data().assignedTrainerId !== user.uid) {
+                 throw new Error("You are not authorized to view this submission.");
+            }
         }
 
         setSubmission(subData);
@@ -145,7 +149,7 @@ export default function SubmissionResultPage() {
                         <Card>
                             <CardHeader><CardTitle>Sample Answer</CardTitle></CardHeader>
                             <CardContent>
-                                <p className="whitespace-pre-wrap text-muted-foreground">{test.sampleAnswer}</p>
+                                <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: test.sampleAnswer }}/>
                             </CardContent>
                         </Card>
                     )}

@@ -24,12 +24,13 @@ export default function Header() {
   };
   
   const navLinks = [
-    { href: '#features', label: 'Features', public: true },
+    { href: '/#features', label: 'Features', public: true },
     { href: '/student/tests', label: 'My Tests', public: false, role: 'student' },
     { href: '/student/submissions', label: 'My Submissions', public: false, role: 'student' },
     { href: '/trainer/tests', label: 'Test Management', public: false, role: 'trainer' },
     { href: '/trainer/students', label: 'Students', public: false, role: 'trainer' },
     { href: '/trainer/submissions', label: 'Submissions', public: false, role: 'trainer' },
+    { href: '/trainer/plans', label: 'Credit Plans', public: false, role: 'trainer' },
     { href: '/trainer/settings', label: 'Settings', public: false, role: 'trainer' },
   ];
 
