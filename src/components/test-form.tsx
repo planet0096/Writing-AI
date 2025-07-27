@@ -66,7 +66,13 @@ export function TestForm({ initialData, onSave }: TestFormProps) {
   const handleImageUpload = (file: File) => {
     if (!file) return;
 
+    // Check if there's already an image and remove it first
+    if (questionImageUrl) {
+        handleRemoveImage(false); // Don't show toast on auto-remove
+    }
+
     setIsUploading(true);
+    setUploadProgress(0);
     const storageRef = ref(storage, `test_images/${Date.now()}_${file.name}`);
     const uploadTask = uploadBytesResumable(storageRef, file);
 
@@ -85,12 +91,13 @@ export function TestForm({ initialData, onSave }: TestFormProps) {
         getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
           form.setValue('questionImageUrl', downloadURL, { shouldValidate: true });
           setIsUploading(false);
+          toast({ title: 'Image uploaded successfully!'});
         });
       }
     );
   };
   
-  const handleRemoveImage = async () => {
+  const handleRemoveImage = async (showToast = true) => {
     const imageUrl = form.getValues('questionImageUrl');
     if(!imageUrl) return;
 
@@ -98,7 +105,9 @@ export function TestForm({ initialData, onSave }: TestFormProps) {
         const imageRef = ref(storage, imageUrl);
         await deleteObject(imageRef);
         form.setValue('questionImageUrl', '', { shouldValidate: true });
-        toast({ title: 'Image removed' });
+        if (showToast) {
+            toast({ title: 'Image removed' });
+        }
     } catch (error) {
         console.error("Failed to delete image:", error);
         toast({ variant: 'destructive', title: 'Error', description: 'Failed to remove image.' });
@@ -138,10 +147,10 @@ export function TestForm({ initialData, onSave }: TestFormProps) {
                     <FormItem>
                       <FormLabel>Question</FormLabel>
                        <FormDescription>
-                        This field supports basic HTML for formatting. For a better experience, we plan to add a rich-text editor soon.
+                        Enter the full test question. You can use an image for charts or graphs below.
                       </FormDescription>
                       <FormControl>
-                        <Textarea placeholder="Enter the full test question here..." className="min-h-[150px]" {...field} />
+                        <Textarea placeholder="Some people believe that technology has made our lives more complex, while others think it has simplified them. Discuss both views and give your own opinion." className="min-h-[150px]" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -172,12 +181,13 @@ export function TestForm({ initialData, onSave }: TestFormProps) {
                                 Upload Image
                              </Button>
                           )}
-                          {isUploading && <Progress value={uploadProgress} className="w-[60%]" />}
-                          {questionImageUrl && (
+                           {isUploading && <div className="w-full max-w-sm"><Progress value={uploadProgress} className="w-full" /><p className="text-sm text-muted-foreground mt-2">{Math.round(uploadProgress)}% uploaded</p></div>}
+                          {questionImageUrl && !isUploading && (
                              <div className="relative w-full max-w-sm h-64 mt-2 border rounded-md overflow-hidden">
                                 <Image src={questionImageUrl} alt="Question visual" layout="fill" objectFit="contain" />
-                                <Button type="button" size="icon" variant="destructive" className="absolute top-2 right-2 h-7 w-7" onClick={handleRemoveImage}>
+                                <Button type="button" size="icon" variant="destructive" className="absolute top-2 right-2 h-7 w-7 z-10" onClick={() => handleRemoveImage()}>
                                     <X className="h-4 w-4" />
+                                    <span className="sr-only">Remove Image</span>
                                 </Button>
                              </div>
                           )}
@@ -249,7 +259,7 @@ export function TestForm({ initialData, onSave }: TestFormProps) {
                 />
 
                 <Button type="submit" disabled={isSubmitting || isUploading}>
-                    {isSubmitting ? 'Saving...' : 'Save Test'}
+                    {isSubmitting ? 'Saving...' : (isUploading ? 'Uploading...' : 'Save Test')}
                 </Button>
 
             </CardContent>
