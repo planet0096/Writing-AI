@@ -4,7 +4,7 @@
 import * as React from "react";
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, onSnapshot, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/auth-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -27,6 +27,7 @@ interface Submission {
   studentId: string;
   trainerId?: string;
   status: 'submitted' | 'completed';
+  evaluationType?: 'ai' | 'manual';
 }
 
 interface Test {
@@ -104,14 +105,12 @@ export default function SubmissionResultPage() {
         if (role === 'student' && subData.studentId !== user.uid) {
           throw new Error("You are not authorized to view this submission.");
         }
-        if (role === 'trainer') {
-          const studentDoc = await getDoc(doc(db, 'users', subData.studentId));
-          if (!studentDoc.exists() || studentDoc.data().assignedTrainerId !== user.uid) {
-            throw new Error("You are not authorized to view this submission.");
-          }
+        if (role === 'trainer' && subData.trainerId !== user.uid) {
+             throw new Error("You are not authorized to view this submission.");
         }
 
         setSubmission(subData);
+        setEditedFeedback(getInitialEditorContent(subData));
 
         if (!test) {
           const testRef = doc(db, 'tests', subData.testId);
@@ -149,20 +148,59 @@ export default function SubmissionResultPage() {
       setIsEditing(false);
     }
   };
+  
+  const handleManualFeedbackSave = async () => {
+    if (!submission || !test) return;
+    setIsEditing(true);
+    
+    try {
+        const subRef = doc(db, 'submissions', submissionId);
+        await updateDoc(subRef, {
+            feedback: editedFeedback,
+            status: 'completed',
+            evaluatedAt: new Date(),
+        });
+        
+        const studentSnap = await getDoc(doc(db, 'users', submission.studentId));
+        if (studentSnap.exists()) {
+            await addDoc(collection(db, 'email_queue'), {
+                to: studentSnap.data().email,
+                template: 'feedback-ready',
+                templateData: {
+                    student_name: studentSnap.data().name,
+                    test_title: test.title,
+                    link_to_submission: `${process.env.NEXT_PUBLIC_BASE_URL}/submissions/${submissionId}`,
+                },
+                trainerId: submission.trainerId,
+            });
+        }
+        toast({ title: "Success", description: "Feedback has been saved and the student has been notified." });
+
+    } catch (error) {
+        toast({ variant: "destructive", title: "Error", description: "Failed to save feedback." });
+    } finally {
+        setIsEditing(false);
+    }
+  };
+
 
   const isStructuredFeedback = submission?.feedback && typeof submission.feedback === 'object';
   const hasManualFeedback = submission?.feedback && typeof submission.feedback === 'string';
   const canEdit = role === 'trainer' && submission?.status === 'completed';
+  
+  const needsManualFeedback = role === 'trainer' && submission?.evaluationType === 'manual' && submission.status === 'submitted';
 
-  const getInitialEditorContent = () => {
-    if (isStructuredFeedback) {
-      return submission.feedback.trainerNotes || "";
+  const getInitialEditorContent = (sub: Submission | null) => {
+    if (!sub) return "";
+    if (sub.feedback && typeof sub.feedback === 'object') {
+      return sub.feedback.trainerNotes || "";
     }
-    if (hasManualFeedback) {
-      return submission.feedback;
+    if (sub.feedback && typeof sub.feedback === 'string') {
+      return sub.feedback;
     }
     return "";
   };
+
 
   if (isLoading || authLoading) {
     return (
@@ -192,7 +230,7 @@ export default function SubmissionResultPage() {
           <div className="space-y-6 lg:sticky lg:top-24">
             {isStructuredFeedback ? (
               <InteractiveFeedbackDisplay feedback={submission.feedback} />
-            ) : (
+            ) : hasManualFeedback ? (
               <Card className="border-primary/50 bg-primary/5">
                 <CardHeader>
                     <div className="flex justify-between items-center">
@@ -200,7 +238,7 @@ export default function SubmissionResultPage() {
                         {canEdit && !isStructuredFeedback && (
                           <Dialog>
                             <DialogTrigger asChild>
-                              <Button variant="outline" size="sm" onClick={() => setEditedFeedback(getInitialEditorContent())}><Edit className="mr-2 h-4 w-4" /> Edit</Button>
+                              <Button variant="outline" size="sm" onClick={() => setEditedFeedback(getInitialEditorContent(submission))}><Edit className="mr-2 h-4 w-4" /> Edit</Button>
                             </DialogTrigger>
                             <DialogContent className="max-w-3xl"><DialogHeader><DialogTitle>Edit Feedback</DialogTitle><DialogDescription>Update the feedback for this submission.</DialogDescription></DialogHeader><div className="py-4"><TiptapEditor content={editedFeedback} onChange={setEditedFeedback} /></div><DialogFooter><DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose><DialogClose asChild><Button onClick={handleFeedbackUpdate} disabled={isEditing}>{isEditing ? "Saving..." : "Save Changes"}</Button></DialogClose></DialogFooter></DialogContent>
                           </Dialog>
@@ -209,7 +247,25 @@ export default function SubmissionResultPage() {
                 </CardHeader>
                 <CardContent><div className="prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: submission?.feedback || "<p>Feedback is being generated or has not been provided yet.</p>" }} /></CardContent>
               </Card>
+            ) : needsManualFeedback ? (
+                 <Card>
+                    <CardHeader><CardTitle>Provide Manual Feedback</CardTitle><CardDescription>Write your evaluation below. It will be saved and sent to the student.</CardDescription></CardHeader>
+                    <CardContent className="space-y-4">
+                        <TiptapEditor content={editedFeedback} onChange={setEditedFeedback} />
+                        <Button onClick={handleManualFeedbackSave} disabled={isEditing || !editedFeedback.trim()}>
+                            {isEditing ? 'Saving...' : 'Save & Complete Evaluation'}
+                        </Button>
+                    </CardContent>
+                </Card>
+            ) : (
+                 <Card>
+                    <CardHeader><CardTitle>Pending Evaluation</CardTitle></CardHeader>
+                    <CardContent>
+                        <p className="text-muted-foreground">This submission is awaiting evaluation. Please check back later.</p>
+                    </CardContent>
+                </Card>
             )}
+
              {isStructuredFeedback && (
               <Card>
                 <CardHeader>
@@ -218,7 +274,7 @@ export default function SubmissionResultPage() {
                      {canEdit && (
                         <Dialog>
                           <DialogTrigger asChild>
-                            <Button variant="outline" size="sm" onClick={() => setEditedFeedback(getInitialEditorContent())}><Edit className="mr-2 h-4 w-4" /> {submission?.feedback.trainerNotes ? "Edit Notes" : "Add Notes"}</Button>
+                            <Button variant="outline" size="sm" onClick={() => setEditedFeedback(getInitialEditorContent(submission))}><Edit className="mr-2 h-4 w-4" /> {submission?.feedback.trainerNotes ? "Edit Notes" : "Add Notes"}</Button>
                           </DialogTrigger>
                            <DialogContent className="max-w-3xl"><DialogHeader><DialogTitle>Trainer's Notes</DialogTitle><DialogDescription>Add or edit your notes for this AI evaluation.</DialogDescription></DialogHeader><div className="py-4"><TiptapEditor content={editedFeedback} onChange={setEditedFeedback} /></div><DialogFooter><DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose><DialogClose asChild><Button onClick={handleFeedbackUpdate} disabled={isEditing}>{isEditing ? "Saving..." : "Save Notes"}</Button></DialogClose></DialogFooter></DialogContent>
                         </Dialog>
