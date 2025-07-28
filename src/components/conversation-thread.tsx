@@ -1,9 +1,8 @@
 
-
 "use client";
 
 import { useEffect, useState, useCallback } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, writeBatch, getDocs, where } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, writeBatch, getDocs, where, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -77,7 +76,7 @@ export default function ConversationThread({ submissionId, studentId, trainerId,
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newMessage.trim()) return;
+        if (!newMessage.trim() || !trainerId) return;
 
         setIsSending(true);
         const messagesRef = collection(db, 'submissions', submissionId, 'feedback_thread');
@@ -92,18 +91,33 @@ export default function ConversationThread({ submissionId, studentId, trainerId,
                 isRead: false,
             });
 
-            // Create a notification for the other user
+            // Get data needed for email templates
             const recipientId = currentUserRole === 'student' ? trainerId : studentId;
-            const notificationMessage = currentUserRole === 'student' 
-                ? `${currentUser.displayName} asked a question about a submission.`
-                : `${currentUser.displayName} replied to your question.`;
+            const recipientSnap = await getDoc(doc(db, 'users', recipientId));
+            const recipientEmail = recipientSnap.data()?.email;
+
+            const submissionSnap = await getDoc(doc(db, 'submissions', submissionId));
+            const testId = submissionSnap.data()?.testId;
+            const testSnap = await getDoc(doc(db, 'tests', testId));
+            const testTitle = testSnap.data()?.title;
+
+            if (!recipientEmail || !testTitle) {
+                throw new Error("Could not retrieve all necessary data for email notification.");
+            }
+
+            // Queue a notification email
+            const templateName = currentUserRole === 'student' ? 'new-student-question' : 'trainer-reply';
             
-            await addDoc(collection(db, 'notifications'), {
-                recipientId,
-                message: notificationMessage,
-                link: `/submissions/${submissionId}`,
-                isRead: false,
-                createdAt: serverTimestamp(),
+            await addDoc(collection(db, 'email_queue'), {
+                to: recipientEmail,
+                template: templateName,
+                templateData: {
+                    student_name: currentUserRole === 'student' ? currentUser.displayName : recipientSnap.data()?.name,
+                    trainer_name: currentUserRole === 'trainer' ? currentUser.displayName : recipientSnap.data()?.name,
+                    test_title: testTitle,
+                    link_to_submission: `${process.env.NEXT_PUBLIC_BASE_URL}/submissions/${submissionId}`,
+                },
+                trainerId: trainerId,
             });
             
             setNewMessage('');
@@ -174,4 +188,3 @@ export default function ConversationThread({ submissionId, studentId, trainerId,
         </Card>
     );
 }
-

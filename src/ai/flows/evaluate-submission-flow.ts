@@ -10,7 +10,7 @@ import { ai } from '@/ai/genkit';
 import { configureGenkit } from 'genkit';
 import { googleAI, GeminiFlash } from '@genkit-ai/googleai';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { z } from 'zod';
 
 
@@ -129,6 +129,14 @@ const evaluateSubmissionFlow = ai.defineFlow(
       throw new Error('Test not found');
     }
     const testData = testSnap.data();
+    
+    const studentRef = doc(db, 'users', submissionData.studentId);
+    const studentSnap = await getDoc(studentRef);
+    if (!studentSnap.exists()) {
+        throw new Error("Student not found.");
+    }
+    const studentData = studentSnap.data();
+
 
     // 2. Call the Gemini API via the defined prompt
     const { output } = await evaluationPrompt({
@@ -146,6 +154,18 @@ const evaluateSubmissionFlow = ai.defineFlow(
       feedback: output, // Save the entire JSON object
       status: 'completed',
       evaluatedAt: new Date(),
+    });
+    
+    // 4. Queue the "Feedback Ready" email
+    await addDoc(collection(db, 'email_queue'), {
+        to: studentData.email,
+        template: 'feedback-ready',
+        templateData: {
+            student_name: studentData.name,
+            test_title: testData.title,
+            link_to_submission: `${process.env.NEXT_PUBLIC_BASE_URL}/submissions/${submissionId}`,
+        },
+        trainerId: submissionData.trainerId,
     });
   }
 );

@@ -20,6 +20,7 @@ interface Trainer {
     aiEvaluationCost: number;
     trainerEvaluationCost: number;
   };
+  email: string;
 }
 
 interface Submission {
@@ -142,9 +143,22 @@ export default function EvaluateSubmissionPage() {
             });
         });
 
-        // 4. If AI, trigger the evaluation flow (outside transaction)
+        // 4. Trigger actions outside transaction
         if(type === 'ai') {
             await evaluateSubmission({ submissionId, trainerId: trainer.id });
+        } else { // type === 'manual'
+            // Queue email to trainer for manual review
+             await addDoc(collection(db, 'email_queue'), {
+                to: trainer.email,
+                template: 'new-manual-submission',
+                templateData: {
+                    student_name: user.displayName,
+                    trainer_name: trainer.name,
+                    test_title: test.title,
+                    link_to_submission: `${process.env.NEXT_PUBLIC_BASE_URL}/submissions/${submissionId}`,
+                },
+                trainerId: trainer.id,
+            });
         }
 
         toast({

@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, updateDoc, increment, serverTimestamp, runTransaction } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, increment, serverTimestamp, runTransaction, addDoc } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -135,6 +135,19 @@ export default function StudentManagementPage() {
                 studentId: selectedStudent.id,
                 planName: plan.planName,
             });
+        });
+
+        // Queue email notification
+        await addDoc(collection(db, 'email_queue'), {
+            to: selectedStudent.email,
+            template: 'plan-assigned',
+            templateData: {
+                student_name: selectedStudent.name,
+                trainer_name: user.displayName,
+                plan_name: plan.planName,
+                credits_added: plan.credits,
+            },
+            trainerId: user.uid,
         });
         
         setStudents(prevStudents =>
