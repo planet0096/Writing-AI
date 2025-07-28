@@ -50,14 +50,61 @@ type EmailTemplateFormValues = z.infer<typeof emailTemplateSchema>;
 
 const DEFAULT_TEMPLATES: EmailTemplateFormValues[] = [
     {
-        id: 'newManualSubmission',
-        name: 'New Manual Submission',
-        subject: 'New IELTS Submission for Review: {{testTitle}}',
-        body: `<p>Hi {{trainerName}},</p><p>A new submission has been made by <strong>{{studentName}}</strong> for the test "<strong>{{testTitle}}</strong>".</p><p>Please log in to your dashboard to review it.</p>`,
+        id: 'welcome-student',
+        name: 'Welcome New Student',
+        subject: 'Welcome to Your IELTS Practice Platform!',
+        body: `<p>Hi [student_name], you have successfully joined the practice group for [trainer_name]. We're excited to help you prepare for your IELTS exam!</p>`,
         enabled: true,
-        shortcodes: ['{{studentName}}', '{{trainerName}}', '{{testTitle}}'],
+        shortcodes: ['[student_name]', '[trainer_name]'],
     },
-    // Add more default templates here in the future
+    {
+        id: 'feedback-ready',
+        name: 'Feedback Ready',
+        subject: 'Your feedback for "[test_title]" is ready!',
+        body: `<p>Hi [student_name], your evaluation for the test "[test_title]" is complete. Click the link below to view your detailed feedback and results. <a href="[link_to_submission]">View Feedback</a></p>`,
+        enabled: true,
+        shortcodes: ['[student_name]', '[test_title]', '[link_to_submission]'],
+    },
+    {
+        id: 'trainer-reply',
+        name: 'Reply from Trainer',
+        subject: '[trainer_name] replied to your question',
+        body: `<p>Hi [student_name], your trainer has replied to your question regarding the test "[test_title]". You can view the conversation here: <a href="[link_to_submission]">View Conversation</a></p>`,
+        enabled: true,
+        shortcodes: ['[student_name]', '[trainer_name]', '[test_title]', '[link_to_submission]'],
+    },
+    {
+        id: 'plan-assigned',
+        name: 'Plan Assigned / Credits Added',
+        subject: 'A new plan has been added to your account',
+        body: `<p>Hi [student_name], your trainer, [trainer_name], has assigned the "[plan_name]" to your account, adding [credits_added] credits to your balance.</p>`,
+        enabled: true,
+        shortcodes: ['[student_name]', '[trainer_name]', '[plan_name]', '[credits_added]'],
+    },
+    {
+        id: 'new-student-signup',
+        name: 'New Student Signup',
+        subject: 'New Student Joined: [student_name]',
+        body: `<p>Hi [trainer_name], a new student, [student_name], has just joined your platform using your registration code.</p>`,
+        enabled: true,
+        shortcodes: ['[student_name]', '[trainer_name]'],
+    },
+    {
+        id: 'new-manual-submission',
+        name: 'New Manual Submission',
+        subject: 'New Submission from [student_name] for Manual Review',
+        body: `<p>Hi [trainer_name], you have received a new submission for the test "[test_title]" from [student_name] that requires your manual evaluation. <a href="[link_to_submission]">Review Submission</a></p>`,
+        enabled: true,
+        shortcodes: ['[student_name]', '[trainer_name]', '[test_title]', '[link_to_submission]'],
+    },
+     {
+        id: 'new-student-question',
+        name: 'New Question from Student',
+        subject: 'New Question from [student_name] on "[test_title]"',
+        body: `<p>Hi [trainer_name], [student_name] has asked a question on their submission for the test "[test_title]". Please review and reply here: <a href="[link_to_submission]">View Question</a></p>`,
+        enabled: true,
+        shortcodes: ['[student_name]', '[trainer_name]', '[test_title]', '[link_to_submission]'],
+    },
 ];
 
 export default function EmailSettingsPage() {
@@ -315,3 +362,6 @@ function EditTemplateDialog({template, onSave}: EditTemplateDialogProps) {
         </DialogContent>
     );
 }
+
+
+    
