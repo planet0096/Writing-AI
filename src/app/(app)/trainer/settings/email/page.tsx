@@ -9,7 +9,7 @@ import * as z from 'zod';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { updateEmailSettings } from '@/ai/flows/trainer-settings-flow';
+import { updateEmailSettings, sendTestEmail } from '@/ai/flows/trainer-settings-flow';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Info, Edit } from 'lucide-react';
+import { Info, Edit, Send } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -65,6 +65,7 @@ export default function EmailSettingsPage() {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isTesting, setIsTesting] = useState(false);
     const [editingTemplate, setEditingTemplate] = useState<EmailTemplateFormValues | null>(null);
 
     const form = useForm<EmailSettingsFormValues>({
@@ -138,6 +139,31 @@ export default function EmailSettingsPage() {
         }
         setEditingTemplate(null);
     };
+    
+    const handleTestSmtp = async () => {
+        if (!user) return;
+        
+        await form.trigger('smtp');
+        const smtpState = form.getFieldState('smtp');
+        if (smtpState.invalid) {
+            toast({ variant: 'destructive', title: 'Invalid SMTP data', description: 'Please fill in all SMTP fields before testing.' });
+            return;
+        }
+        
+        setIsTesting(true);
+        try {
+            // First save the current settings
+            await onSubmit(form.getValues());
+            
+            // Then run the test flow
+            const result = await sendTestEmail({ trainerId: user.uid });
+            toast({ title: 'Success', description: result.message });
+        } catch (error: any) {
+             toast({ variant: 'destructive', title: 'Test Failed', description: error.message });
+        } finally {
+            setIsTesting(false);
+        }
+    };
 
     if (isLoading || authLoading) {
         return <Skeleton className="h-[500px] w-full" />;
@@ -169,6 +195,15 @@ export default function EmailSettingsPage() {
                             )}/>
                         </div>
                     </CardContent>
+                    <CardFooter className="gap-2">
+                        <Button type="submit" disabled={isSubmitting || isTesting}>
+                            {isSubmitting ? 'Saving...' : 'Save All Settings'}
+                        </Button>
+                        <Button type="button" variant="secondary" onClick={handleTestSmtp} disabled={isTesting || isSubmitting}>
+                            <Send className="mr-2 h-4 w-4" />
+                            {isTesting ? 'Sending...' : 'Send Test Email'}
+                        </Button>
+                    </CardFooter>
                 </Card>
 
                 <Card>
@@ -212,10 +247,6 @@ export default function EmailSettingsPage() {
                        ))}
                     </CardContent>
                 </Card>
-
-                <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting ? 'Saving...' : 'Save All Settings'}
-                </Button>
             </form>
         </Form>
     );
