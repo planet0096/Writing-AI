@@ -8,26 +8,25 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import * as nodemailer from 'nodemailer';
 import { z } from 'zod';
-import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 
 // Define the schema for the email queue document data
-const EmailQueueDataSchema = z.object({
+export const EmailQueueDataSchema = z.object({
   to: z.string().email(),
   template: z.string(),
   templateData: z.record(z.any()),
   trainerId: z.string(),
 });
 
-type EmailQueueData = z.infer<typeof EmailQueueDataSchema>;
+export type EmailQueueData = z.infer<typeof EmailQueueDataSchema>;
 
-// This flow is not meant to be called directly from the client, but by a Firestore trigger.
+// This flow is designed to be called by a trigger when a document is added to the email_queue.
 export const sendQueuedEmail = ai.defineFlow(
   {
     name: 'sendQueuedEmail',
-    inputSchema: z.object({ data: EmailQueueDataSchema }),
+    inputSchema: EmailQueueDataSchema,
     outputSchema: z.void(),
   },
-  async ({ data }) => {
+  async (data) => {
     const { to, template, templateData, trainerId } = data;
 
     // 1. Fetch the trainer's email settings
@@ -40,6 +39,7 @@ export const sendQueuedEmail = ai.defineFlow(
     }
     const settings = settingsSnap.data()!;
     const smtpConfig = settings.smtp;
+    
     const templateConfig = settings.templates?.[template];
     
     if (!templateConfig || !templateConfig.enabled) {
@@ -52,8 +52,8 @@ export const sendQueuedEmail = ai.defineFlow(
     let body = templateConfig.body;
     for (const key in templateData) {
         const regex = new RegExp(`\\[${key}\\]`, 'g');
-        subject = subject.replace(regex, templateData[key]);
-        body = body.replace(regex, templateData[key]);
+        subject = subject.replace(regex, templateData[key] as string);
+        body = body.replace(regex, templateData[key] as string);
     }
     
     // 3. Configure Nodemailer and send the email
@@ -81,29 +81,3 @@ export const sendQueuedEmail = ai.defineFlow(
     }
   }
 );
-
-
-// This is the Firebase Function trigger.
-// It will be part of the `index.ts` file in a Firebase Functions setup.
-// For Genkit, we will invoke this flow from the trigger.
-
-// Note: In a full Firebase project, you would have a `functions/src/index.ts`
-// and this would be part of it. For this project structure, we define the trigger
-// and manually associate it.
-
-export const onEmailQueued = onDocumentCreated('email_queue/{documentId}', async (event) => {
-    const snapshot = event.data;
-    if (!snapshot) {
-        console.log("No data associated with the event");
-        return;
-    }
-    
-    const emailData = snapshot.data() as EmailQueueData;
-    
-    try {
-        await sendQueuedEmail({ data: emailData });
-    } catch (error) {
-        console.error("Error processing queued email:", error);
-    }
-});
-

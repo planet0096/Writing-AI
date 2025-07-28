@@ -16,6 +16,7 @@ import { evaluateSubmission } from '@/ai/flows/evaluate-submission-flow';
 
 interface Trainer {
   id: string;
+  name: string;
   pricing: {
     aiEvaluationCost: number;
     trainerEvaluationCost: number;
@@ -145,6 +146,10 @@ export default function EvaluateSubmissionPage() {
 
         // 4. Trigger actions outside transaction
         if(type === 'ai') {
+            toast({
+                title: "Request Submitted!",
+                description: `Your submission has been sent for AI evaluation. This may take a moment.`
+            });
             await evaluateSubmission({ submissionId, trainerId: trainer.id });
         } else { // type === 'manual'
             // Queue email to trainer for manual review
@@ -159,12 +164,11 @@ export default function EvaluateSubmissionPage() {
                 },
                 trainerId: trainer.id,
             });
+            toast({
+                title: "Request Submitted!",
+                description: `Your submission has been sent for manual evaluation.`
+            });
         }
-
-        toast({
-            title: "Request Submitted!",
-            description: `Your submission has been sent for ${type === 'ai' ? 'AI' : 'manual'} evaluation.`
-        });
         
         router.push(`/student/submissions`);
           

@@ -126,14 +126,13 @@ export default function StudentManagementPage() {
             // Create credit transaction log
             const transactionRef = collection(db, 'users', selectedStudent.id, 'credit_transactions');
             transaction.set(doc(transactionRef), {
-                type: 'purchase',
-                amount: plan.price * 100, // Store in cents
+                type: 'adjustment',
+                amount: plan.credits,
                 description: `Assigned plan: ${plan.planName}`,
                 balance_after: newBalance,
                 createdAt: serverTimestamp(),
                 trainerId: user.uid,
                 studentId: selectedStudent.id,
-                planName: plan.planName,
             });
         });
 
