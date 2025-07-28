@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Separator } from "@/components/ui/separator";
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { Shield, CreditCard, Gem, KeyRound } from 'lucide-react';
+import { Shield, CreditCard, Gem, KeyRound, Mail } from 'lucide-react';
 
 
 const sidebarNavItems = [
@@ -29,6 +29,11 @@ const sidebarNavItems = [
     href: "/trainer/settings/api-key",
     icon: <KeyRound />,
   },
+   {
+    title: "Email",
+    href: "/trainer/settings/email",
+    icon: <Mail />,
+  },
 ];
 
 
@@ -48,13 +53,13 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
           </p>
         </div>
         
-        <nav className="flex border-b">
+        <nav className="flex border-b overflow-x-auto">
           {sidebarNavItems.map((item) => (
              <Link 
                 key={item.href} 
                 href={item.href} 
                 className={cn(
-                    "flex items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground hover:text-primary",
+                    "flex shrink-0 items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground hover:text-primary",
                     pathname === item.href && "border-b-2 border-primary text-primary"
                 )}
              >
