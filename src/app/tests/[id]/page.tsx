@@ -13,6 +13,8 @@ import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { extractTextFromImages } from '@/ai/flows/image-to-text-flow';
+import { UploadCloud, X, Wand2 } from 'lucide-react';
 
 interface Test {
   id: string;
@@ -39,6 +41,11 @@ export default function TestTakingPage() {
   const [timeLeft, setTimeLeft] = useState(0);
   const [isTimeUp, setIsTimeUp] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [isConverting, setIsConverting] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
 
   useEffect(() => {
     if (!id) return;
@@ -113,6 +120,50 @@ export default function TestTakingPage() {
     }
   };
 
+  const handleImageFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+        const files = Array.from(event.target.files);
+        if (imageFiles.length + files.length > 5) {
+            toast({ variant: 'destructive', title: 'Limit Reached', description: 'You can only upload a maximum of 5 images.' });
+            return;
+        }
+        setImageFiles(prev => [...prev, ...files]);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setImageFiles(prev => prev.filter((_, i) => i !== index));
+  };
+  
+  const handleConvertToText = async () => {
+    if (imageFiles.length === 0) return;
+    setIsConverting(true);
+
+    try {
+        const imagePromises = imageFiles.map(file => {
+            return new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        });
+
+        const dataUris = await Promise.all(imagePromises);
+        const { text } = await extractTextFromImages({ images: dataUris });
+        
+        setStudentAnswer(prev => prev + (prev ? '\n\n' : '') + text);
+        setImageFiles([]); // Clear images after successful conversion
+        toast({ title: "Success", description: "Text extracted from images and added to your answer." });
+
+    } catch (error) {
+        toast({ variant: 'destructive', title: 'Conversion Failed', description: 'Could not extract text from the images. Please try again.' });
+    } finally {
+        setIsConverting(false);
+    }
+  }
+
+
   if (isLoading || authLoading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -165,24 +216,84 @@ export default function TestTakingPage() {
                 </Card>
 
                 {/* Answer Pane */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Your Answer</CardTitle>
-                        <CardDescription>Write your response in the text area below.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <Textarea
-                            placeholder="Start writing your answer here..."
-                            className="min-h-[400px] text-base"
-                            value={studentAnswer}
-                            onChange={(e) => setStudentAnswer(e.target.value)}
-                            disabled={isTimeUp || isSubmitting}
-                        />
-                        <div className="text-right text-sm text-muted-foreground mt-2">
-                           Word Count: {wordCount}
-                        </div>
-                    </CardContent>
-                </Card>
+                <div className="space-y-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Your Answer</CardTitle>
+                            <CardDescription>Write your response in the text area below.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Textarea
+                                placeholder="Start writing your answer here..."
+                                className="min-h-[400px] text-base"
+                                value={studentAnswer}
+                                onChange={(e) => setStudentAnswer(e.target.value)}
+                                disabled={isTimeUp || isSubmitting}
+                            />
+                            <div className="text-right text-sm text-muted-foreground mt-2">
+                               Word Count: {wordCount}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                         <CardHeader>
+                            <CardTitle>Handwritten Answer?</CardTitle>
+                            <CardDescription>Upload images of your answer and we'll convert it to text for you.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                             <input
+                                type="file"
+                                accept="image/png, image/jpeg, image/webp"
+                                multiple
+                                ref={imageInputRef}
+                                onChange={handleImageFileChange}
+                                className="hidden"
+                                disabled={isConverting}
+                            />
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => imageInputRef.current?.click()}
+                                disabled={isConverting || imageFiles.length >= 5}
+                            >
+                                <UploadCloud className="mr-2" />
+                                Attach Images ({imageFiles.length}/5)
+                            </Button>
+
+                            {imageFiles.length > 0 && (
+                                <div className="space-y-2">
+                                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                                        {imageFiles.map((file, index) => (
+                                            <div key={index} className="relative aspect-square">
+                                                <Image
+                                                    src={URL.createObjectURL(file)}
+                                                    alt={`preview ${index + 1}`}
+                                                    layout="fill"
+                                                    objectFit="cover"
+                                                    className="rounded-md"
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    variant="destructive"
+                                                    size="icon"
+                                                    className="absolute top-1 right-1 h-6 w-6"
+                                                    onClick={() => removeImage(index)}
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <Button onClick={handleConvertToText} disabled={isConverting}>
+                                        <Wand2 className="mr-2"/>
+                                        {isConverting ? 'Converting...' : 'Convert to Text'}
+                                    </Button>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
         </div>
 
@@ -202,3 +313,4 @@ export default function TestTakingPage() {
     </div>
   );
 }
+
