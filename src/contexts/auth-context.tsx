@@ -1,4 +1,3 @@
-
 "use client";
 
 import { createContext, useState, useEffect, useContext, ReactNode, useCallback } from 'react';
@@ -76,7 +75,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setUser(null);
             setRole(null);
             setLoading(false);
-            router.push('/login');
+            router.push('/');
             return;
         }
 
@@ -110,10 +109,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
     if (loading) return;
 
-    const isPublicPage = ['/', '/login', '/register'].includes(pathname) || pathname.startsWith('/#') || pathname.startsWith('/ielts-writing-questions');
-    if (isPublicPage) return;
+    const isAuthPage = pathname === '/';
+    const isPublicPage = pathname.startsWith('/ielts-writing-questions');
 
-    const isAuthPage = pathname === '/login' || pathname === '/register';
+    if (isAuthPage || isPublicPage) return;
+
     const isProtectedStudentPage = pathname.startsWith('/student') || pathname.startsWith('/tests');
     const isProtectedTrainerPage = pathname.startsWith('/trainer');
     const isProfilePage = pathname.startsWith('/profile');
@@ -121,7 +121,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 
     if (!user && (isProtectedStudentPage || isProtectedTrainerPage || isProfilePage || isSubmissionPage)) {
-      router.push('/login');
+      router.push('/');
       return;
     }
 

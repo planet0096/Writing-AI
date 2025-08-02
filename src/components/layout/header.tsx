@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -14,11 +13,14 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { NAV_LINKS } from '@/config/nav-links';
+import { useSidebar } from '../ui/sidebar';
 
 export default function Header() {
   const { user, role, loading } = useAuth();
   const router = useRouter();
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const { toggleSidebar } = useSidebar();
+
 
   useEffect(() => {
     if (!user) return;
@@ -39,36 +41,28 @@ export default function Header() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      router.push('/login');
+      router.push('/');
     } catch (error) {
       console.error('Error signing out:', error);
     }
   };
   
-  const navLinks = [
-    { href: '/#features', label: 'Features', public: true },
-    ...NAV_LINKS.student,
-    ...NAV_LINKS.trainer
-  ];
-
   const getInitials = (name?: string | null) => {
     if (!name) return 'U';
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-40 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 max-w-screen-2xl items-center">
-        <div className="mr-4 flex items-center">
-          <Link href="/" className="mr-6 flex items-center space-x-2">
-            <BookOpen className="h-6 w-6 text-primary" />
-            <span className="font-bold font-headline inline-block">IELTS Prep Hub</span>
-          </Link>
+        <div className="mr-4 flex items-center md:hidden">
+            <Button variant="ghost" size="icon" onClick={toggleSidebar}>
+                <Menu />
+                <span className="sr-only">Toggle Sidebar</span>
+            </Button>
         </div>
         <div className="flex flex-1 items-center justify-end space-x-2">
-          {!loading && (
-            <>
-              {user ? (
+          {!loading && user && (
                 <>
                  <Button variant="ghost" size="icon" className="relative">
                     <Bell className="h-5 w-5" />
@@ -116,43 +110,8 @@ export default function Header() {
                   </DropdownMenuContent>
                 </DropdownMenu>
                 </>
-              ) : (
-                <>
-                  <Button variant="ghost" asChild>
-                    <Link href="/login">Log In</Link>
-                  </Button>
-                  <Button asChild>
-                    <Link href="/register">Sign Up</Link>
-                  </Button>
-                </>
-              )}
-            </>
-          )}
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="icon" className="md:hidden">
-                <Menu className="h-5 w-5" />
-                <span className="sr-only">Open menu</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right">
-              <Link href="/" className="mr-6 flex items-center space-x-2 mb-6">
-                <BookOpen className="h-6 w-6 text-primary" />
-                <span className="font-bold font-headline">IELTS Prep Hub</span>
-              </Link>
-              <nav className="flex flex-col gap-4">
-                {navLinks.filter(l => (l as any).public || (l as any).role === role).map((link: any) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className="transition-colors hover:text-foreground/80 text-foreground/60"
-                  >
-                    {link.label}
-                  </Link>
-                ))}
-              </nav>
-            </SheetContent>
-          </Sheet>
+              )
+            }
         </div>
       </div>
     </header>

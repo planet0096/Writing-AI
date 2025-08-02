@@ -1,7 +1,5 @@
-
 "use client";
 
-import type { Metadata } from 'next';
 import './globals.css';
 import { cn } from '@/lib/utils';
 import Header from '@/components/layout/header';
@@ -12,16 +10,12 @@ import { usePathname } from 'next/navigation';
 import { Sidebar, SidebarProvider } from '@/components/ui/sidebar';
 import AppSidebar from '@/components/layout/app-sidebar';
 
-// export const metadata: Metadata = {
-//   title: 'IELTS Prep Hub',
-//   description: 'Your ultimate online platform for IELTS preparation, connecting students with expert trainers.',
-// };
-
 function AppContent({ children }: { children: React.ReactNode }) {
   const { user, role, loading } = useAuth();
   const pathname = usePathname();
 
-  const isPublicPage = ['/', '/login', '/register'].includes(pathname) || pathname.startsWith('/#') || pathname.startsWith('/ielts-writing-questions');
+  const isAuthPage = pathname === '/';
+  const isPublicPage = pathname.startsWith('/ielts-writing-questions');
   const isTestTakingPage = pathname.startsWith('/tests/');
 
   if (loading) {
@@ -32,12 +26,12 @@ function AppContent({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (isPublicPage || !user) {
+  if (isAuthPage || isPublicPage || !user) {
     return (
       <div className="relative flex min-h-dvh flex-col bg-slate-50">
-        <Header />
+        {isPublicPage && <Header />}
         <main className="flex-1">{children}</main>
-        <Footer />
+        {isPublicPage && <Footer />}
       </div>
     );
   }
@@ -73,7 +67,7 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet" />
       </head>
       <body className={cn("min-h-screen bg-background font-body antialiased")}>
         <AuthProvider>
