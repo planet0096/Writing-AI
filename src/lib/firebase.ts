@@ -12,7 +12,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyCvesz4WJQ2v2Yy582C3Gj907OY7a9UACk",
   authDomain: "tubenext-z70jo.firebaseapp.com",
   projectId: "tubenext-z70jo",
-  storageBucket: "tubenext-z70jo.appspot.com",
+  storageBucket: "tubenext-z70jo.firebasestorage.app",
   messagingSenderId: "1086340256556",
   appId: "1:1086340256556:web:aeefb9b9966f960faf5289"
 };
