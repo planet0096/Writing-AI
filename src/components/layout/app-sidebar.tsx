@@ -7,9 +7,10 @@ import { NAV_LINKS } from "@/config/nav-links";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BookOpen } from "lucide-react";
+import Image from "next/image";
 
 export default function AppSidebar({ role }: { role: 'student' | 'trainer' | null }) {
-    const { user } = useAuth();
+    const { user, brandLogoUrl } = useAuth();
     const pathname = usePathname();
 
     const links = role ? NAV_LINKS[role] : [];
@@ -17,8 +18,14 @@ export default function AppSidebar({ role }: { role: 'student' | 'trainer' | nul
     return (
         <div className="flex flex-col h-full text-sidebar-foreground">
             <div className="p-4 flex items-center gap-2">
-                 <BookOpen className="h-6 w-6 text-primary" />
-                <h2 className="font-semibold text-lg text-card-foreground">IELTS Prep Hub</h2>
+                 {brandLogoUrl && !brandLogoUrl.startsWith('/') ? (
+                    <Image src={brandLogoUrl} alt="Brand Logo" width={150} height={40} className="max-h-8 w-auto" />
+                 ) : (
+                    <>
+                        <BookOpen className="h-6 w-6 text-primary" />
+                        <h2 className="font-semibold text-lg text-card-foreground">IELTS Prep Hub</h2>
+                    </>
+                 )}
             </div>
             <div className="flex-1 overflow-y-auto">
                 <SidebarMenu>

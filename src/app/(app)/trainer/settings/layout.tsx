@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Separator } from "@/components/ui/separator";
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { Shield, CreditCard, Gem, KeyRound, Mail } from 'lucide-react';
+import { Shield, CreditCard, Gem, KeyRound, Mail, Paintbrush } from 'lucide-react';
 
 
 const sidebarNavItems = [
@@ -13,6 +13,11 @@ const sidebarNavItems = [
     title: "Account",
     href: "/trainer/settings",
     icon: <Shield />,
+  },
+  {
+    title: "Branding",
+    href: "/trainer/settings/branding",
+    icon: <Paintbrush />,
   },
   {
     title: "Evaluation Pricing",
@@ -73,5 +78,3 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
       </div>
   );
 }
-
-    
