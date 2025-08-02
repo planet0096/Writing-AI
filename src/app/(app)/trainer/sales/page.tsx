@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, orderBy, Timestamp, collectionGroup } from 'firebase/firestore';
 import { DateRange } from "react-day-picker";
-import { subDays, startOfMonth, endOfMonth, startOfYear, endOfYear, format as formatDate } from 'date-fns';
+import { subDays, startOfMonth, endOfMonth, startOfYear, format as formatDate } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -126,7 +126,10 @@ export default function SalesDashboardPage() {
     return (
         <div className="p-4 sm:p-6 lg:p-8 space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <h1 className="text-2xl font-bold text-slate-800">Sales Dashboard</h1>
+                <div className="space-y-1">
+                    <h1 className="text-2xl font-bold text-slate-900">Sales Dashboard</h1>
+                    <p className="text-sm text-slate-500">Track your revenue and plan performance.</p>
+                </div>
                 <DateRangePicker date={dateRange} onDateChange={setDateRange} />
             </div>
 
@@ -177,12 +180,7 @@ export default function SalesDashboardPage() {
                 </Card>
             </div>
             
-            <Card>
-                <CardHeader><CardTitle>Recent Sales</CardTitle></CardHeader>
-                <CardContent>
-                    <SalesDataTable data={sales} isLoading={isLoading}/>
-                </CardContent>
-            </Card>
+            <SalesDataTable data={sales} isLoading={isLoading}/>
         </div>
     );
 }
@@ -190,14 +188,11 @@ export default function SalesDashboardPage() {
 
 function StatCard({ title, value, icon, isLoading }: { title: string; value: string | number; icon: React.ReactNode; isLoading: boolean }) {
     return (
-        <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{title}</CardTitle>
-                {icon}
-            </CardHeader>
-            <CardContent>
-                {isLoading ? <Skeleton className="h-8 w-1/2" /> : <div className="text-2xl font-bold">{value}</div>}
-            </CardContent>
-        </Card>
+        <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+            <p className="text-sm font-medium text-slate-500 truncate">{title}</p>
+            {isLoading ? <Skeleton className="h-8 w-1/2 mt-1" /> : <p className="mt-1 text-3xl font-semibold text-slate-900">{value}</p>}
+        </div>
     );
 }
+
+    

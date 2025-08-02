@@ -8,7 +8,6 @@ import { ref, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { PlusCircle, Edit, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -97,78 +96,79 @@ export default function TestsPage() {
   );
 
   return (
-    <div className="container mx-auto px-4 py-12">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-            <div className="space-y-1">
-                <CardTitle>Test Management</CardTitle>
-                <CardDescription>Create, edit, and manage your writing tests.</CardDescription>
-            </div>
-          <Button onClick={() => router.push('/trainer/tests/create')}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Create New Test
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <>
-                  {renderSkeleton()}
-                  {renderSkeleton()}
-                  {renderSkeleton()}
-                </>
-              ) : tests.length > 0 ? (
-                tests.map((test) => (
-                  <TableRow key={test.id}>
-                    <TableCell className="font-medium">{test.title}</TableCell>
-                    <TableCell>{test.category}</TableCell>
-                    <TableCell className="text-right">
-                       <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="icon" onClick={() => router.push(`/trainer/tests/edit/${test.id}`)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                         <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                             <Button variant="destructive" size="icon">
-                                <Trash2 className="h-4 w-4" />
-                             </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This action cannot be undone. This will permanently delete the test and its associated image from storage.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDelete(test.id, test.questionImageUrl)}>Delete</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={3} className="text-center">
-                    No tests found.
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="flex items-center justify-between mb-6">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold text-slate-900">Test Management</h1>
+          <p className="text-sm text-slate-500">Create, edit, and manage your writing tests.</p>
+        </div>
+        <Button onClick={() => router.push('/trainer/tests/create')}>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Create New Test
+        </Button>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-lg shadow-sm">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Title</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <>
+                {renderSkeleton()}
+                {renderSkeleton()}
+                {renderSkeleton()}
+              </>
+            ) : tests.length > 0 ? (
+              tests.map((test) => (
+                <TableRow key={test.id}>
+                  <TableCell className="font-medium">{test.title}</TableCell>
+                  <TableCell className="text-slate-500">{test.category}</TableCell>
+                  <TableCell className="text-right">
+                     <div className="flex justify-end gap-2">
+                      <Button variant="outline" size="icon" onClick={() => router.push(`/trainer/tests/edit/${test.id}`)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                       <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                           <Button variant="destructive" size="icon">
+                              <Trash2 className="h-4 w-4" />
+                           </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This action cannot be undone. This will permanently delete the test and its associated image from storage.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDelete(test.id, test.questionImageUrl)}>Delete</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </TableCell>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={3} className="h-24 text-center text-slate-500">
+                  No tests found. Create one to get started.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }
+
+    

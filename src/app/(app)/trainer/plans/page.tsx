@@ -84,61 +84,60 @@ export default function PlansPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <Card>
-        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-                <CardTitle>Credit Plans</CardTitle>
-                <CardDescription>Create and manage credit packages for your students.</CardDescription>
-            </div>
-          <Button onClick={() => router.push('/trainer/plans/create')}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Create New Plan
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <div className="border rounded-lg overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Plan Name</TableHead>
-                  <TableHead>Credits</TableHead>
-                  <TableHead>Price</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+       <div className="flex items-center justify-between mb-6">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold text-slate-900">Credit Plans</h1>
+          <p className="text-sm text-slate-500">Create and manage credit packages for your students.</p>
+        </div>
+        <Button onClick={() => router.push('/trainer/plans/create')}>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Create New Plan
+        </Button>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-lg shadow-sm">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Plan Name</TableHead>
+              <TableHead>Credits</TableHead>
+              <TableHead>Price</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <>{renderSkeleton()}{renderSkeleton()}</>
+            ) : plans.length > 0 ? (
+              plans.map((plan) => (
+                <TableRow key={plan.id}>
+                  <TableCell className="font-medium">{plan.planName}</TableCell>
+                  <TableCell>{plan.credits}</TableCell>
+                  <TableCell>${plan.price.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">
+                     <div className="flex justify-end gap-2">
+                      <Button variant="outline" size="icon" onClick={() => router.push(`/trainer/plans/edit/${plan.id}`)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                       <AlertDialog>
+                        <AlertDialogTrigger asChild><Button variant="destructive" size="icon"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone. This will permanently delete the credit plan.</AlertDialogDescription></AlertDialogHeader>
+                          <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDelete(plan.id)}>Delete</AlertDialogAction></AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <>{renderSkeleton()}{renderSkeleton()}</>
-                ) : plans.length > 0 ? (
-                  plans.map((plan) => (
-                    <TableRow key={plan.id}>
-                      <TableCell className="font-medium">{plan.planName}</TableCell>
-                      <TableCell>{plan.credits}</TableCell>
-                      <TableCell>${plan.price.toFixed(2)}</TableCell>
-                      <TableCell className="text-right">
-                         <div className="flex justify-end gap-2">
-                          <Button variant="outline" size="icon" onClick={() => router.push(`/trainer/plans/edit/${plan.id}`)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                           <AlertDialog>
-                            <AlertDialogTrigger asChild><Button variant="destructive" size="icon"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone. This will permanently delete the credit plan.</AlertDialogDescription></AlertDialogHeader>
-                              <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDelete(plan.id)}>Delete</AlertDialogAction></AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow><TableCell colSpan={4} className="h-24 text-center text-slate-500">No plans found. Create one to get started.</TableCell></TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+              ))
+            ) : (
+              <TableRow><TableCell colSpan={4} className="h-24 text-center text-slate-500">No plans found. Create one to get started.</TableCell></TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }
+
+    

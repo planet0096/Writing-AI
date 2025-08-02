@@ -51,28 +51,32 @@ const columns: ColumnDef<Sale>[] = [
         </Button>
       )
     },
-    cell: ({ row }) => <div>{format(row.original.createdAt.toDate(), 'PP')}</div>,
+    cell: ({ row }) => <div className="text-sm text-slate-700">{format(row.original.createdAt.toDate(), 'PP')}</div>,
   },
   {
     accessorKey: "studentName",
     header: "Student",
+    cell: ({ row }) => <div className="text-sm font-medium text-slate-800">{row.getValue("studentName")}</div>,
   },
   {
     accessorKey: "planName",
     header: "Plan Purchased",
+    cell: ({ row }) => <div className="text-sm text-slate-700">{row.getValue("planName")}</div>,
   },
   {
     accessorKey: "amount",
     header: ({ column }) => {
       return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="text-right w-full"
-        >
-          Amount
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
+        <div className="text-right">
+          <Button
+            variant="ghost"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            className="text-right"
+          >
+            Amount
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+        </div>
       )
     },
     cell: ({ row }) => {
@@ -81,7 +85,7 @@ const columns: ColumnDef<Sale>[] = [
         style: "currency",
         currency: "USD",
       }).format(amount)
-      return <div className="text-right font-medium">{formatted}</div>
+      return <div className="text-right font-medium text-sm text-slate-800">{formatted}</div>
     },
   },
 ]
@@ -126,14 +130,15 @@ export function SalesDataTable({ data, isLoading }: SalesDataTableProps) {
   }
 
   return (
-    <div className="w-full">
-      <div className="flex items-center py-4">
-        <Button onClick={handleExport} variant="outline" size="sm">
+    <div className="w-full bg-white rounded-lg border border-slate-200 shadow-sm p-6">
+      <div className="flex items-center pb-4">
+        <h2 className="text-lg font-semibold text-slate-900">Recent Sales</h2>
+        <Button onClick={handleExport} variant="outline" size="sm" className="ml-auto">
             <Download className="mr-2 h-4 w-4" />
             Export CSV
         </Button>
       </div>
-      <div className="rounded-md border">
+      <div className="border-t border-slate-200">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -165,6 +170,7 @@ export function SalesDataTable({ data, isLoading }: SalesDataTableProps) {
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
+                  className="hover:bg-slate-50"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
@@ -180,7 +186,7 @@ export function SalesDataTable({ data, isLoading }: SalesDataTableProps) {
               <TableRow>
                 <TableCell
                   colSpan={columns.length}
-                  className="h-24 text-center"
+                  className="h-24 text-center text-slate-500"
                 >
                   No results.
                 </TableCell>
@@ -189,8 +195,8 @@ export function SalesDataTable({ data, isLoading }: SalesDataTableProps) {
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end space-x-2 py-4">
-        <div className="flex-1 text-sm text-muted-foreground">
+      <div className="flex items-center justify-end space-x-2 pt-4">
+        <div className="flex-1 text-sm text-slate-500">
           {table.getFilteredRowModel().rows.length} row(s).
         </div>
         <div className="space-x-2">
@@ -215,3 +221,5 @@ export function SalesDataTable({ data, isLoading }: SalesDataTableProps) {
     </div>
   )
 }
+
+    

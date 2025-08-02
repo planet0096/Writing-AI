@@ -166,9 +166,9 @@ export default function TrainerSubmissionsPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-        <div>
-            <h1 className="text-2xl font-bold text-slate-800">Student Submissions</h1>
-            <p className="text-sm text-slate-600">Review, filter, and evaluate submissions from your students.</p>
+        <div className="space-y-1">
+            <h1 className="text-2xl font-bold text-slate-900">Student Submissions</h1>
+            <p className="text-sm text-slate-500">Review, filter, and evaluate submissions from your students.</p>
         </div>
         
         <SubmissionsFilterBar 
@@ -197,3 +197,5 @@ export default function TrainerSubmissionsPage() {
     </div>
   );
 }
+
+    

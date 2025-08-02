@@ -151,7 +151,7 @@ export default function TrainerDashboard() {
                 createdAt: serverTimestamp(),
                 trainerId: user.uid,
                 studentId: notification.context.studentId,
-                planName: notification.context.planName,
+                planName: planData.planName,
             });
 
             // Delete the notification
@@ -262,9 +262,11 @@ function StatCard({ title, value, icon, isLoading }: StatCardProps) {
             </CardHeader>
             <CardContent>
                 {isLoading ? <Skeleton className="h-8 w-1/3" /> : (
-                    <div className="text-3xl font-bold text-slate-800 dark:text-slate-100">{value}</div>
+                    <div className="text-3xl font-bold text-slate-900">{value}</div>
                 )}
             </CardContent>
         </Card>
     );
 }
+
+    

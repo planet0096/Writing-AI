@@ -1,3 +1,4 @@
+
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
@@ -9,15 +10,15 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 dark:text-white",
+        default: "bg-indigo-600 text-white hover:bg-indigo-700 focus-visible:ring-indigo-500",
         destructive:
-          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+          "bg-red-500 text-white hover:bg-red-600",
         outline:
-          "border border-slate-200 bg-transparent hover:bg-slate-100 hover:text-slate-900 dark:border-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-50",
+          "border border-slate-200 bg-transparent hover:bg-slate-100 hover:text-slate-900",
         secondary:
-          "bg-slate-100 text-slate-900 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-50 dark:hover:bg-slate-700",
-        ghost: "hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-slate-50",
-        link: "text-primary underline-offset-4 hover:underline",
+          "bg-slate-100 text-slate-900 hover:bg-slate-200",
+        ghost: "hover:bg-slate-100 hover:text-slate-900",
+        link: "text-indigo-600 underline-offset-4 hover:underline",
       },
       size: {
         default: "h-10 px-4 py-2",
@@ -54,3 +55,5 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 Button.displayName = "Button"
 
 export { Button, buttonVariants }
+
+    
