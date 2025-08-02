@@ -27,7 +27,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-50">
-        <div className="h-16 w-16 animate-spin rounded-full border-4 border-dashed border-indigo-600"></div>
+        <div className="h-16 w-16 animate-spin rounded-full border-4 border-dashed border-primary"></div>
       </div>
     );
   }
@@ -53,7 +53,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
        <Sidebar>
         <AppSidebar role={role} />
       </Sidebar>
-      <div className="flex flex-col w-full bg-slate-50">
+      <div className="flex flex-col w-full bg-slate-50 dark:bg-background">
          <Header />
          <main className="flex-1 overflow-y-auto">
            {children}

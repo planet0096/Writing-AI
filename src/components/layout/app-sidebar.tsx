@@ -6,6 +6,7 @@ import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "../ui/sidebar";
 import { NAV_LINKS } from "@/config/nav-links";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { BookOpen } from "lucide-react";
 
 export default function AppSidebar({ role }: { role: 'student' | 'trainer' | null }) {
     const { user } = useAuth();
@@ -14,9 +15,10 @@ export default function AppSidebar({ role }: { role: 'student' | 'trainer' | nul
     const links = role ? NAV_LINKS[role] : [];
     
     return (
-        <div className="flex flex-col h-full">
-            <div className="p-4">
-                <h2 className="font-semibold text-lg text-sidebar-primary-foreground">IELTS Prep Hub</h2>
+        <div className="flex flex-col h-full text-sidebar-foreground">
+            <div className="p-4 flex items-center gap-2">
+                 <BookOpen className="h-6 w-6 text-primary" />
+                <h2 className="font-semibold text-lg text-card-foreground">IELTS Prep Hub</h2>
             </div>
             <div className="flex-1 overflow-y-auto">
                 <SidebarMenu>
@@ -24,7 +26,7 @@ export default function AppSidebar({ role }: { role: 'student' | 'trainer' | nul
                         <SidebarMenuItem key={link.href}>
                             <SidebarMenuButton
                                 asChild
-                                isActive={pathname === link.href}
+                                isActive={pathname.startsWith(link.href)}
                                 tooltip={{ children: link.label, side: "right" }}
                             >
                                 <Link href={link.href}>
