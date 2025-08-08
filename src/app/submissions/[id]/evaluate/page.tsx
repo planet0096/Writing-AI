@@ -30,6 +30,7 @@ interface Submission {
 
 interface Test {
     title: string;
+    isFree?: boolean;
 }
 
 export default function EvaluateSubmissionPage() {
@@ -98,7 +99,8 @@ export default function EvaluateSubmissionPage() {
   const handleEvaluationRequest = async (type: 'ai' | 'manual') => {
       if (!user || !trainer || !test) return;
       
-      const cost = type === 'ai' ? trainer.pricing.aiEvaluationCost : trainer.pricing.trainerEvaluationCost;
+      const isFree = test.isFree ?? false;
+      const cost = isFree ? 0 : (type === 'ai' ? trainer.pricing.aiEvaluationCost : trainer.pricing.trainerEvaluationCost);
       
       if(studentCredits < cost) {
           setError("You do not have enough credits for this evaluation. Please purchase more or contact your trainer.");
@@ -112,37 +114,41 @@ export default function EvaluateSubmissionPage() {
         const studentRef = doc(db, 'users', user.uid);
         const submissionRef = doc(db, 'submissions', submissionId);
         
-        await runTransaction(db, async (transaction) => {
-            const studentSnap = await transaction.get(studentRef);
-            if (!studentSnap.exists()) throw new Error("Student data not found.");
-            
-            const currentCredits = studentSnap.data().credits || 0;
-            if (currentCredits < cost) {
-                throw new Error("You do not have enough credits for this evaluation.");
-            }
-            const newBalance = currentCredits - cost;
+        // This transaction is now conditional on the cost
+        if (cost > 0) {
+            await runTransaction(db, async (transaction) => {
+                const studentSnap = await transaction.get(studentRef);
+                if (!studentSnap.exists()) throw new Error("Student data not found.");
+                
+                const currentCredits = studentSnap.data().credits || 0;
+                if (currentCredits < cost) {
+                    throw new Error("You do not have enough credits for this evaluation.");
+                }
+                const newBalance = currentCredits - cost;
 
-            // 1. Deduct credits and update student document
-            transaction.update(studentRef, { credits: newBalance });
+                // 1. Deduct credits and update student document
+                transaction.update(studentRef, { credits: newBalance });
 
-            // 2. Create a credit transaction log
-            const transactionLogRef = collection(db, 'users', user.uid, 'credit_transactions');
-            transaction.set(doc(transactionLogRef), {
-                type: 'spend',
-                amount: -cost,
-                description: `${type === 'ai' ? 'AI' : 'Trainer'} Evaluation for "${test.title}"`,
-                balance_after: newBalance,
-                createdAt: serverTimestamp(),
-                trainerId: trainer.id,
-                studentId: user.uid,
+                // 2. Create a credit transaction log
+                const transactionLogRef = collection(db, 'users', user.uid, 'credit_transactions');
+                transaction.set(doc(transactionLogRef), {
+                    type: 'spend',
+                    amount: -cost,
+                    description: `${type === 'ai' ? 'AI' : 'Trainer'} Evaluation for "${test.title}"`,
+                    balance_after: newBalance,
+                    createdAt: serverTimestamp(),
+                    trainerId: trainer.id,
+                    studentId: user.uid,
+                });
             });
-
-            // 3. Update submission with evaluation type
-            transaction.update(submissionRef, {
-                evaluationType: type,
-                trainerId: trainer.id,
-            });
+        }
+        
+        // Update submission with evaluation type regardless of cost
+        await updateDoc(submissionRef, {
+            evaluationType: type,
+            trainerId: trainer.id,
         });
+
 
         // 4. Trigger actions outside transaction
         if(type === 'ai') {
@@ -182,6 +188,8 @@ export default function EvaluateSubmissionPage() {
       }
   };
 
+  const aiCost = test?.isFree ? 'Free' : `${trainer?.pricing?.aiEvaluationCost ?? ''} Credits`;
+  const trainerCost = test?.isFree ? 'Free' : `${trainer?.pricing?.trainerEvaluationCost ?? ''} Credits`;
 
   if (isLoading || authLoading) {
     return (
@@ -221,7 +229,7 @@ export default function EvaluateSubmissionPage() {
                     <CardDescription>Get instant, detailed feedback on your writing from our AI assistant.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex-grow">
-                    <p className="text-2xl font-bold">{trainer?.pricing?.aiEvaluationCost ?? <Skeleton className="w-12 h-8 inline-block"/>} Credits</p>
+                    <p className="text-2xl font-bold">{isLoading ? <Skeleton className="w-24 h-8 inline-block"/> : aiCost}</p>
                 </CardContent>
                 <div className="p-6 pt-0">
                     <Button 
@@ -242,7 +250,7 @@ export default function EvaluateSubmissionPage() {
                     <CardDescription>Receive personalized, expert feedback directly from your assigned trainer.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex-grow">
-                     <p className="text-2xl font-bold">{trainer?.pricing?.trainerEvaluationCost ?? <Skeleton className="w-12 h-8 inline-block"/>} Credits</p>
+                     <p className="text-2xl font-bold">{isLoading ? <Skeleton className="w-24 h-8 inline-block"/> : trainerCost}</p>
                 </CardContent>
                 <div className="p-6 pt-0">
                      <Button 

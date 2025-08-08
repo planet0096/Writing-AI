@@ -18,6 +18,7 @@ import Image from 'next/image';
 import { Upload, X, AlertCircle } from 'lucide-react';
 import TiptapEditor from './tiptap-editor';
 import { Alert, AlertTitle, AlertDescription } from './ui/alert';
+import { Switch } from './ui/switch';
 
 
 const formSchema = z.object({
@@ -25,6 +26,7 @@ const formSchema = z.object({
   question: z.string().min(1, 'Question is required'),
   category: z.string().min(1, 'Category is required'),
   timer: z.coerce.number().int().positive('Timer must be a positive number'),
+  isFree: z.boolean().optional(),
   sampleAnswer: z.string().optional(),
   aiEvaluationPrompt: z.string().optional(),
   questionImageUrl: z.string().optional(),
@@ -52,6 +54,7 @@ export function TestForm({ initialData, onSave }: TestFormProps) {
       question: '',
       category: '',
       timer: 40,
+      isFree: false,
       sampleAnswer: '',
       aiEvaluationPrompt: '',
       questionImageUrl: '',
@@ -260,6 +263,27 @@ export function TestForm({ initialData, onSave }: TestFormProps) {
 
                 <FormField
                   control={form.control}
+                  name="isFree"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">Allow Free Evaluation</FormLabel>
+                        <FormDescription>
+                          If enabled, students can get this test evaluated for free, regardless of their credit balance.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
                   name="sampleAnswer"
                   render={({ field }) => (
                     <FormItem>
@@ -298,5 +322,3 @@ export function TestForm({ initialData, onSave }: TestFormProps) {
     </Form>
   );
 }
-
-    
