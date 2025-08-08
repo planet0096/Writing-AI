@@ -23,7 +23,7 @@ export default function AppSidebar({ role }: { role: 'student' | 'trainer' | nul
                  ) : (
                     <>
                         <BookOpen className="h-6 w-6 text-primary" />
-                        <h2 className="font-semibold text-lg text-card-foreground">IELTS Prep Hub</h2>
+                        <h2 className="font-semibold text-lg text-card-foreground">IELTS Pen</h2>
                     </>
                  )}
             </div>

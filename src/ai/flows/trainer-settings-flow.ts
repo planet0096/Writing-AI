@@ -97,9 +97,9 @@ export const sendTestEmail = ai.defineFlow(
 
         try {
             await transporter.sendMail({
-                from: `"IELTS Prep Hub" <${smtpConfig.user}>`,
+                from: `"IELTS Pen" <${smtpConfig.user}>`,
                 to: trainerEmail,
-                subject: "Test Email from IELTS Prep Hub",
+                subject: "Test Email from IELTS Pen",
                 html: "<b>This is a test message.</b><p>Your SMTP settings are configured correctly.</p>",
             });
             return { success: true, message: `Test email sent successfully to ${trainerEmail}!` };

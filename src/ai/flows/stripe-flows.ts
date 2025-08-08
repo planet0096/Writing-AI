@@ -101,7 +101,7 @@ export const createStripeCheckoutSession = ai.defineFlow({
                 currency: 'usd',
                 product_data: {
                     name: plan.planName,
-                    description: `${plan.credits} credits for IELTS Prep Hub`,
+                    description: `${plan.credits} credits for IELTS Pen`,
                 },
                 unit_amount: Math.round(plan.price * 100), // Price in cents
             },

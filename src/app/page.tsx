@@ -137,12 +137,12 @@ export default function AuthPage() {
             {/* Left Pane */}
             <div className="relative hidden items-center justify-center bg-gray-800 text-white lg:flex">
                  <Image
-                    src="https://placehold.co/1200x1800.png"
-                    alt="Students writing an exam"
+                    src="https://spacetree.org/wp-content/uploads/Writing-AI.webp"
+                    alt="AI writing on a piece of paper"
                     layout="fill"
                     objectFit="cover"
                     className="opacity-20"
-                    data-ai-hint="education writing"
+                    data-ai-hint="robot writing"
                 />
                  <div className="relative z-10 mx-auto w-full max-w-md space-y-6 px-10">
                     <h1 className="text-5xl font-extrabold tracking-tight">
@@ -160,7 +160,7 @@ export default function AuthPage() {
             <div className="flex items-center justify-center p-6 sm:p-12 lg:p-8 bg-white">
                 <div className="mx-auto w-full max-w-md">
                     <div className="mb-8 text-center">
-                        <h1 className="text-3xl font-bold text-slate-900">Welcome to IELTS Prep Hub</h1>
+                        <h1 className="text-3xl font-bold text-slate-900">Welcome to IELTS Pen</h1>
                         <p className="text-slate-500">Your journey to success starts here.</p>
                     </div>
                     <Tabs defaultValue="login" className="w-full">

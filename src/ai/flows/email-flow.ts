@@ -69,7 +69,7 @@ export const sendQueuedEmail = ai.defineFlow(
     
     try {
       await transporter.sendMail({
-        from: `"IELTS Prep Hub" <${smtpConfig.user}>`,
+        from: `"IELTS Pen" <${smtpConfig.user}>`,
         to,
         subject,
         html: body,
