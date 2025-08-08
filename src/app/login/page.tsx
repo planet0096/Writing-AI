@@ -137,7 +137,7 @@ export default function AuthPage() {
             {/* Left Pane */}
             <div className="relative hidden items-center justify-center bg-gray-800 text-white lg:flex">
                  <Image
-                    src="https://spacetree.org/wp-content/uploads/Writing-AI.webp"
+                    src="https://spacetree.org/wp-content/uploads/Writing-AI-1.png"
                     alt="Students writing an exam"
                     layout="fill"
                     objectFit="cover"
