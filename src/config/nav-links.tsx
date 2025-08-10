@@ -9,7 +9,8 @@ export const NAV_LINKS = {
         { href: '/student/submissions', label: 'My Submissions', icon: <FileText /> },
         { href: '/student/plans', label: 'Buy Credits', icon: <CreditCard /> },
         { href: '/student/credits', label: 'My Credits', icon: <BarChart3 /> },
-        { href: '/profile', label: 'Account', icon: <Settings /> }
+        { href: '/profile', label: 'Account', icon: <Settings /> },
+        { href: '/student/debug', label: 'Debug', icon: <Bug /> }
     ],
     trainer: [
         { href: '/trainer/dashboard', label: 'Dashboard', icon: <LayoutDashboard /> },
