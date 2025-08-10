@@ -25,10 +25,8 @@ service cloud.firestore {
       allow create: if true;
       allow read, update: if isSignedIn() && (isOwner(userId) || isAssignedTrainer(userId));
       
-      // This rule EXACTLY matches the query in /trainer/students/page.tsx
-      allow list: if isTrainer() && request.query.where.size() == 1 &&
-                   request.query.where[0][0] == 'assignedTrainerId' &&
-                   request.query.where[0][2] == request.auth.uid;
+      // Allow trainers to list students, but ONLY if they are filtering by their own trainer ID.
+      allow list: if isTrainer() && request.query.where['assignedTrainerId'] == request.auth.uid;
 
       match /private_details/{docId} {
         allow read, write: if isOwner(userId);
@@ -55,9 +53,8 @@ service cloud.firestore {
       allow create: if isSignedIn() && getRole(request.auth.uid) == 'student';
       allow read, update: if isSignedIn() && (isOwner(resource.data.studentId) || isAssignedTrainer(resource.data.studentId));
       
-      // This rule EXACTLY matches the queries in /trainer/submissions/page.tsx
-      allow list: if isTrainer() && request.query.where[0][0] == 'trainerId' && 
-                   request.query.where[0][2] == request.auth.uid;
+      // Allow trainers to list submissions, but ONLY if they are filtering by their own trainer ID.
+      allow list: if isTrainer() && request.query.where['trainerId'] == request.auth.uid;
       
       match /feedback_thread/{messageId} {
         allow read, create: if isSignedIn() && (isOwner(get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId) || isAssignedTrainer(get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId));
@@ -73,7 +70,7 @@ service cloud.firestore {
     match /notifications/{notificationId} {
       allow create: if isSignedIn();
       allow read, delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
-      allow list: if isSignedIn() && request.query.where[0][0] == 'recipientId' && request.query.where[0][2] == request.auth.uid;
+      allow list: if isSignedIn() && request.query.where['recipientId'] == request.auth.uid;
     }
     match /email_queue/{emailId} {
       allow create: if isSignedIn();
