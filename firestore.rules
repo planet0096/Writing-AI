@@ -32,13 +32,15 @@ service cloud.firestore {
       
       // Users can only read/update their own profile
       allow read, update: if isSignedIn() && isOwner(userId);
-      
+
       // Trainers can read their assigned students' data
-      // Trainers can list users, but only if they are querying for their own students.
-      allow list: if isTrainer() && request.query.where.assignedTrainerId == request.auth.uid;
+      allow read: if isTrainer() && isAssignedTrainer(userId);
       
+      // Trainers can query for their students
+      allow list: if isTrainer() && request.query.get('where')[0][0] == 'assignedTrainerId' && request.query.get('where')[0][2] == request.auth.uid;
+
       // A trainer can update a student's credits if they are assigned
-      allow update: if isTrainer() && isAssignedTrainer(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['credits', 'currentPlan', 'accountStatus']);
+      allow update: if isTrainer() && isAssignedTrainer(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['credits', 'currentPlan', 'accountStatus', 'assignedTrainerId']);
 
       // Private subcollections for settings
       match /private_details/{docId} {
@@ -57,16 +59,19 @@ service cloud.firestore {
     // Collection Group: credit_transactions (for trainer sales dashboard)
     match /{path=**}/credit_transactions/{transactionId} {
         // Allow trainers to read transactions where they are listed as the trainerId
-        allow read: if isTrainer() && get(resource.path).data.trainerId == request.auth.uid;
+        allow read, list: if isTrainer() && get(resource.path).data.trainerId == request.auth.uid;
     }
 
     // Collection: tests
     match /tests/{testId} {
-        // Only trainers can create/update/delete tests
-        allow create, update, delete: if isTrainer();
+        // Only trainers can create/update/delete tests that they own
+        allow create: if isTrainer();
+        allow update, delete: if isTrainer() && resource.data.trainerId == request.auth.uid;
         
         // Any signed-in user can read tests
         allow read: if isSignedIn();
+        // Allow trainers to list their own tests
+        allow list: if isTrainer() && request.query.get('where')[0][2] == request.auth.uid;
     }
     
     // Collection: submissions
@@ -76,9 +81,9 @@ service cloud.firestore {
         
         // Only the student who made it or their assigned trainer can read/update it
         allow read, update: if (isSignedIn() && (isOwner(resource.data.studentId) || isAssignedTrainer(resource.data.studentId)));
-
-        // Trainers can list submissions, but only if they are querying for their own submissions.
-        allow list: if isTrainer() && request.query.where.trainerId == request.auth.uid;
+        
+        // Trainers can list submissions that belong to them
+        allow list: if isTrainer() && request.query.get('where')[0][2] == request.auth.uid;
         
         // Feedback subcollection
         match /feedback_thread/{messageId} {
@@ -94,17 +99,18 @@ service cloud.firestore {
         
         // All signed-in users can read plans
         allow read: if isSignedIn();
+         // Trainers can list their own plans
+        allow list: if isTrainer() && request.query.get('where')[0][2] == request.auth.uid;
     }
     
     // Collection: notifications
     match /notifications/{notificationId} {
-        // Trainers can list their own notifications
-        allow list: if isTrainer() && request.query.where.recipientId == request.auth.uid;
-
-        // Only the recipient can read/delete
-        allow read, delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
         // Only backend can create
         allow create: if false; 
+        // Only the recipient can read/delete
+        allow read, delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+        allow list: if isTrainer() && request.query.get('where')[0][2] == request.auth.uid;
+
     }
     
     // Collection: email_queue
