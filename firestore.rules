@@ -30,16 +30,17 @@ service cloud.firestore {
       // Anyone can create a user account (signup)
       allow create: if true;
       
+      // Allow trainers to list their assigned students
+      allow list: if isTrainer() && request.query.get("where")[0][0] == 'assignedTrainerId' && request.query.get("where")[0][2] == request.auth.uid;
+
       // Users can only read/update their own profile
-      allow read, update: if isSignedIn() && isOwner(userId);
-
       // Trainers can read their assigned students' data
-      allow read: if isTrainer() && isAssignedTrainer(userId);
+      allow read: if isSignedIn() && (isOwner(userId) || isAssignedTrainer(userId));
       
-      // Trainers can query for their students
-      allow list: if isTrainer() && request.query.get('where')[0][0] == 'assignedTrainerId' && request.query.get('where')[0][2] == request.auth.uid;
-
-      // A trainer can update a student's credits if they are assigned
+      // Users can update their own profile
+      allow update: if isSignedIn() && isOwner(userId);
+      
+      // A trainer can update specific fields on an assigned student's profile
       allow update: if isTrainer() && isAssignedTrainer(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['credits', 'currentPlan', 'accountStatus', 'assignedTrainerId']);
 
       // Private subcollections for settings
@@ -49,8 +50,8 @@ service cloud.firestore {
       
       // Credit transactions subcollection
       match /credit_transactions/{transactionId} {
-          // A user can read their own transactions
-          allow read: if isSignedIn() && isOwner(userId);
+          // A user can read their own transactions. A trainer can read transactions of their students.
+          allow read: if isSignedIn() && (isOwner(userId) || isAssignedTrainer(userId));
           // Only backend/server logic should create transactions (via a transaction)
           allow create, update, delete: if false; 
       }
@@ -59,37 +60,35 @@ service cloud.firestore {
     // Collection Group: credit_transactions (for trainer sales dashboard)
     match /{path=**}/credit_transactions/{transactionId} {
         // Allow trainers to read transactions where they are listed as the trainerId
-        allow read, list: if isTrainer() && get(resource.path).data.trainerId == request.auth.uid;
+        allow read: if isTrainer() && get(resource.path).data.trainerId == request.auth.uid;
     }
 
     // Collection: tests
     match /tests/{testId} {
-        // Only trainers can create/update/delete tests that they own
-        allow create: if isTrainer();
-        allow update, delete: if isTrainer() && resource.data.trainerId == request.auth.uid;
+        // Only trainers can create/update/delete tests
+        allow create, update, delete: if isTrainer();
         
         // Any signed-in user can read tests
-        allow read: if isSignedIn();
-        // Allow trainers to list their own tests
-        allow list: if isTrainer() && request.query.get('where')[0][2] == request.auth.uid;
+        // Trainers can list their own tests
+        allow read, list: if isSignedIn();
     }
     
     // Collection: submissions
     match /submissions/{submissionId} {
-        // Students can create a submission
-        allow create: if isStudent();
-        
-        // Only the student who made it or their assigned trainer can read/update it
-        allow read, update: if (isSignedIn() && (isOwner(resource.data.studentId) || isAssignedTrainer(resource.data.studentId)));
-        
-        // Trainers can list submissions that belong to them
-        allow list: if isTrainer() && request.query.get('where')[0][2] == request.auth.uid;
-        
-        // Feedback subcollection
-        match /feedback_thread/{messageId} {
-             allow read, create: if (isSignedIn() && (isOwner(resource.data.studentId) || isAssignedTrainer(resource.data.studentId)));
-             allow update, delete: if false; // Don't allow editing messages
-        }
+      // Students can create a submission
+      allow create: if isStudent();
+      
+      // A trainer can list submissions associated with them. This covers multiple queries on the dashboard.
+      allow list: if isTrainer() && request.query.get("where")[0][0] == 'trainerId' && request.query.get("where")[0][2] == request.auth.uid;
+      
+      // Only the student who made it or their assigned trainer can read/update it
+      allow read, update: if isSignedIn() && (isOwner(resource.data.studentId) || isAssignedTrainer(resource.data.studentId));
+      
+      // Feedback subcollection
+      match /feedback_thread/{messageId} {
+           allow read, create: if isSignedIn() && (isOwner(resource.data.studentId) || isAssignedTrainer(resource.data.studentId));
+           allow update, delete: if false; // Don't allow editing messages
+      }
     }
     
     // Collection: plans
@@ -97,20 +96,18 @@ service cloud.firestore {
         // Trainers can manage their own plans
         allow create, update, delete: if isTrainer() && request.resource.data.trainerId == request.auth.uid;
         
-        // All signed-in users can read plans
-        allow read: if isSignedIn();
-         // Trainers can list their own plans
-        allow list: if isTrainer() && request.query.get('where')[0][2] == request.auth.uid;
+        // All signed-in users can read plans. Trainers can list their own plans.
+        allow read, list: if isSignedIn();
     }
     
     // Collection: notifications
     match /notifications/{notificationId} {
+        // Allow trainers to list notifications sent to them
+        allow list: if isTrainer() && request.query.get("where")[0][0] == 'recipientId' && request.query.get("where")[0][2] == request.auth.uid;
         // Only backend can create
         allow create: if false; 
         // Only the recipient can read/delete
         allow read, delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
-        allow list: if isTrainer() && request.query.get('where')[0][2] == request.auth.uid;
-
     }
     
     // Collection: email_queue
