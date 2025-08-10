@@ -3,77 +3,119 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // Default: Deny all reads/writes
-    match /{document=**} {
-      allow read, write: if false;
+
+    // Helper functions
+    function isUserAuthenticated() {
+      return request.auth != null;
     }
 
-    // Users can read/write their own data.
-    // Trainers can read their assigned students' public data.
-    // Students can read their assigned trainer's public data.
+    function isUser(userId) {
+      return isUserAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isTrainer() {
+      return isUserAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'trainer';
+    }
+    
+    function isStudent() {
+       return isUserAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student';
+    }
+    
+    function isAssignedToTrainer(studentId, trainerId) {
+      return get(/databases/$(database)/documents/users/$(studentId)).data.assignedTrainerId == trainerId;
+    }
+
+
+    // Collection: users
     match /users/{userId} {
-      allow read: if request.auth.uid == userId 
-                  || (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'trainer' && get(/databases/$(database)/documents/users/$(userId)).data.assignedTrainerId == request.auth.uid)
-                  || (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.assignedTrainerId == userId);
+      // Any authenticated user can create their own account record during signup.
+      allow create: if isUserAuthenticated();
+      
+      // Users can only read their own document.
+      // Trainers can read the documents of students assigned to them.
+      allow read: if isUser(userId) || 
+                   (isTrainer() && isAssignedToTrainer(userId, request.auth.uid));
+      
+      // Users can only update their own document.
+      allow update: if isUser(userId);
+      
+      // Users cannot delete their own accounts.
+      allow delete: if false;
 
-      allow write: if request.auth.uid == userId;
-
-      // Credit transactions can only be created by a server-side process (our flows) or the assigned trainer.
-      // Students can read their own transaction history.
-      match /credit_transactions/{transactionId} {
-        allow read: if request.auth.uid == userId;
-        allow create: if get(/databases/$(database)/documents/users/$(userId)).data.assignedTrainerId == request.auth.uid;
-        allow write: if false; // No updates/deletes
+      // Subcollection: private_details
+      // Only the user themselves can access their own private details.
+      match /private_details/{docId} {
+        allow read, write: if isUser(userId);
       }
       
-       match /private_details/{detailId} {
-        allow read, write: if request.auth.uid == userId && get(/databases/$(database)/documents/users/$(userId)).data.role == 'trainer';
-       }
+       // Subcollection: credit_transactions
+      match /credit_transactions/{transactionId} {
+        // A user can read their own transaction history.
+        // A trainer can read the history of their assigned students.
+        allow read: if isUser(userId) ||
+                     (isTrainer() && isAssignedToTrainer(userId, request.auth.uid));
+                     
+        // Transactions are created by server-side logic (flows) or other secure processes,
+        // so client-side creation is disallowed.
+        allow create, update, delete: if false;
+      }
     }
-
-    // Plans: Trainers can manage their own plans. Students can read plans from their assigned trainer.
-    match /plans/{planId} {
-      allow read: if resource.data.trainerId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.assignedTrainerId
-                  || resource.data.trainerId == request.auth.uid;
-      allow create, update, delete: if request.resource.data.trainerId == request.auth.uid;
-    }
-
-    // Tests: Trainers can manage their own tests. Students can read tests from their assigned trainer.
+    
+    // Collection: tests
     match /tests/{testId} {
-      allow read: if resource.data.trainerId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.assignedTrainerId 
-                  || resource.data.trainerId == request.auth.uid;
-      allow create, update, delete: if request.resource.data.trainerId == request.auth.uid;
+      // Only trainers can create, update, or delete tests.
+      allow write: if isTrainer();
+      
+      // Any authenticated user can read the tests.
+      // This allows students to see tests from their assigned trainer.
+      allow read: if isUserAuthenticated();
     }
     
-    // Submissions:
-    // Students can create submissions.
-    // Students and their assigned trainer can read the submission.
-    // Only trainers or AI flow can update (evaluate) it.
+    // Collection: submissions
     match /submissions/{submissionId} {
-        allow create: if request.resource.data.studentId == request.auth.uid;
-        allow read: if resource.data.studentId == request.auth.uid || resource.data.trainerId == request.auth.uid;
-        allow update: if resource.data.trainerId == request.auth.uid;
+      // Students can create their own submissions.
+      allow create: if isStudent();
+      
+      // A student can read their own submission.
+      // A trainer can read submissions from their students.
+      allow read: if (isStudent() && resource.data.studentId == request.auth.uid) ||
+                   (isTrainer() && resource.data.trainerId == request.auth.uid);
+                   
+      // Students can update a submission (e.g., to request an evaluation type).
+      // Trainers can update a submission (e.g., to add feedback).
+      allow update: if (isStudent() && resource.data.studentId == request.auth.uid) ||
+                     (isTrainer() && resource.data.trainerId == request.auth.uid);
+                     
+      // Deletion of submissions is disallowed from the client.
+      allow delete: if false;
+      
+      // Subcollection: feedback_thread
+      match /feedback_thread/{messageId} {
+         // The student who owns the submission or their assigned trainer can read/write messages.
+         allow read, write: if (isUser(resource.data.authorId) && (isUser(get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId) || isUser(get(/databases/$(database)/documents/submissions/$(submissionId)).data.trainerId)));
+      }
+    }
+    
+    // Collection: plans
+    match /plans/{planId} {
+        // Only trainers can create, update, and delete credit plans.
+        allow write: if isTrainer();
         
-        // Conversation thread within a submission
-        match /feedback_thread/{messageId} {
-            allow read: if get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId == request.auth.uid || get(/databases/$(database)/documents/submissions/$(submissionId)).data.trainerId == request.auth.uid;
-            allow create: if request.resource.data.authorId == request.auth.uid;
-        }
+        // All authenticated users can read plans to view purchase options.
+        allow read: if isUserAuthenticated();
     }
     
-    // Email Queue: Can only be written to by authenticated users (server-side logic will validate further)
-    match /email_queue/{emailId} {
-        allow create: if request.auth != null;
-        allow read, update, delete: if false;
-    }
-    
-    // Notifications: Recipient can read/delete their own notifications. Can be created by anyone authenticated (flows).
+    // Collection: notifications
+    // These are handled by server-side logic, so clients can't write directly.
     match /notifications/{notificationId} {
-        allow create: if request.auth != null;
-        allow read, delete: if resource.data.recipientId == request.auth.uid;
-        allow update: if false;
+        allow read: if isUser(resource.data.recipientId);
+        allow write: if false;
     }
     
+    // Collection: email_queue
+    // All emails are queued by server-side flows. No client access.
+    match /email_queue/{emailId} {
+      allow read, write: if false;
+    }
   }
 }
