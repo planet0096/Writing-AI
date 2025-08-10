@@ -94,7 +94,7 @@ export default function StudentDebugPage() {
         { name: 'Assigned Tests Query', key: 'assignedTests', fn: testAssignedTestsQuery, description: "Fetches tests from your assigned trainer. (Used in 'My Tests')" },
         { name: 'My Submissions Query', key: 'mySubmissions', fn: testMySubmissionsQuery, description: "Fetches all your past submissions. (Used in 'My Submissions')" },
         { name: 'Credit History Query', key: 'creditHistory', fn: testCreditHistoryQuery, description: "Fetches your credit purchase and spend history. (Used in 'My Credits')" },
-        { name: 'Notifications Query (Expect Fail)', key: 'notifications', fn: testNotificationsQuery, description: "Checks if a student can list notifications. This should fail silently.", expectFail: true },
+        { name: 'Notifications Query', key: 'notifications', fn: testNotificationsQuery, description: "Checks if a student can list their own notifications. This should succeed." },
     ];
 
     return (
