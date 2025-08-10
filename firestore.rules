@@ -7,85 +7,74 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isRole(role) {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+    function isTrainer() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'trainer';
+    }
+    
+    function isStudent() {
+        return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student';
     }
     
     function isOwner(userId) {
-      return request.auth.uid == userId;
+        return request.auth.uid == userId;
     }
     
-    function isAssignedTrainer(studentDoc) {
-        return studentDoc.data.assignedTrainerId == request.auth.uid;
+    function isAssignedTrainer(studentId) {
+        let studentDoc = get(/databases/$(database)/documents/users/$(studentId)).data;
+        return studentDoc.assignedTrainerId == request.auth.uid;
     }
 
-    // Rules for the 'users' collection
+    // Collection: users
     match /users/{userId} {
-      // ANYONE can create a user during signup.
-      allow create: if true;
+      allow create: if true; // Be cautious with this in production
+      allow read, update: if isSignedIn() && (isOwner(userId) || isAssignedTrainer(userId));
+      allow list: if isTrainer() && request.query.where.path == "assignedTrainerId" && request.query.where.op == "==" && request.query.where.value == request.auth.uid;
       
-      // A user can READ their OWN document. A TRAINER can READ their assigned STUDENT's document.
-      allow read: if (isSignedIn() && isOwner(userId)) || (isRole('trainer') && isAssignedTrainer(get(/databases/$(database)/documents/users/$(userId))));
-      
-      // A user can UPDATE their OWN document. A TRAINER can update specific fields on an assigned student's document.
-      allow update: if (isSignedIn() && isOwner(userId)) || (isRole('trainer') && isAssignedTrainer(get(/databases/$(database)/documents/users/$(userId))) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['credits', 'currentPlan', 'accountStatus']));
-      
-      // TRAINERS can LIST users that are assigned to them.
-      allow list: if isRole('trainer');
-
-      // Rules for private subcollections within a user's document
       match /private_details/{docId} {
         allow read, write: if isSignedIn() && isOwner(userId);
       }
       
-      // Rules for credit transaction logs for a user
       match /credit_transactions/{transactionId} {
-        allow read: if isSignedIn() && isOwner(userId);
-        allow create, update, delete: if false; // Only backend can manage transactions
+        allow read: if isSignedIn() && (isOwner(userId) || isAssignedTrainer(userId));
+        allow create: if isSignedIn(); // Allow logged-in users to create transactions
       }
-    }
-    
-    // Collection Group rule for credit_transactions, used by Trainer Sales page
-    match /{path=**}/credit_transactions/{transactionId} {
-        allow read: if isRole('trainer') && resource.data.trainerId == request.auth.uid;
     }
 
-    // Rules for the 'tests' collection
+    // Collection: tests
     match /tests/{testId} {
-      allow create, update, delete: if isRole('trainer');
+      allow create, update, delete: if isTrainer() && request.resource.data.trainerId == request.auth.uid;
       allow read: if isSignedIn();
     }
     
-    // Rules for the 'submissions' collection
+    // Collection: submissions
     match /submissions/{submissionId} {
-      allow create: if isRole('student');
-      allow read, update: if isSignedIn() && (isOwner(resource.data.studentId) || (isRole('trainer') && resource.data.trainerId == request.auth.uid));
-      allow list: if isRole('trainer'); // Allow trainers to query their submissions list
-        
-      // Rules for the feedback thread within a submission
+      allow create: if isStudent();
+      allow read, update: if (isSignedIn() && (isOwner(resource.data.studentId) || isAssignedTrainer(resource.data.studentId)));
+      allow list: if isTrainer() && request.query.where.path == "trainerId" && request.query.where.op == "==" && request.query.where.value == request.auth.uid;
+      
       match /feedback_thread/{messageId} {
-        allow read, create: if isSignedIn() && (isOwner(resource.data.authorId) || (isRole('trainer') && resource.data.authorId == request.auth.uid));
-        allow update, delete: if false; // Messages are immutable
+        allow read, create: if (isSignedIn() && (isOwner(get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId) || isAssignedTrainer(get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId)));
+        allow update, delete: if false;
       }
     }
     
-    // Rules for the 'plans' collection
+    // Collection: plans
     match /plans/{planId} {
-      allow create, update, delete: if isRole('trainer') && request.resource.data.trainerId == request.auth.uid;
+      allow create, update, delete: if isTrainer() && request.resource.data.trainerId == request.auth.uid;
       allow read: if isSignedIn();
-      allow list: if isRole('trainer');
     }
     
-    // Rules for the 'notifications' collection
+    // Collection: notifications
     match /notifications/{notificationId} {
-      allow create: if false; // Only backend can create
+      allow create: if true; // Allow creation for the app
       allow read, delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
-      allow list: if isRole('trainer');
+      allow list: if isSignedIn() && request.query.where.path == "recipientId" && request.query.where.op == "==" && request.query.where.value == request.auth.uid;
     }
     
-    // Lock down the email queue, only backend access
+    // Collection: email_queue
     match /email_queue/{emailId} {
-      allow read, write, create, delete, list: if false;
+      allow create: if isSignedIn(); // Allow the app to queue emails
+      allow read, delete: if false; // Should only be handled by backend functions
     }
   }
 }
