@@ -1,0 +1,83 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isTrainer() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'trainer';
+    }
+    
+    function isStudent() {
+        return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student';
+    }
+    
+    function isOwner(userId) {
+        return request.auth.uid == userId;
+    }
+    
+    function isAssignedTrainer(studentId) {
+        let studentDoc = get(/databases/$(database)/documents/users/$(studentId)).data;
+        return studentDoc.assignedTrainerId == request.auth.uid;
+    }
+
+    // Collection: users
+    match /users/{userId} {
+      allow create: if true;
+      allow read, update: if isSignedIn() && isOwner(userId);
+      allow list: if isTrainer() && request.query.where.path == "assignedTrainerId" && request.query.where.op == "==" && request.query.where.value == request.auth.uid;
+
+      match /private_details/{docId} {
+        allow read, write: if isSignedIn() && isOwner(userId);
+      }
+      
+      match /credit_transactions/{transactionId} {
+          allow read: if isSignedIn() && isOwner(userId);
+          allow create, update, delete: if false; 
+      }
+    }
+    
+    match /{path=**}/credit_transactions/{transactionId} {
+        allow read: if isTrainer() && get(resource.path).data.trainerId == request.auth.uid;
+    }
+
+    // Collection: tests
+    match /tests/{testId} {
+        allow create, update, delete: if isTrainer();
+        allow read: if isSignedIn();
+    }
+    
+    // Collection: submissions
+    match /submissions/{submissionId} {
+        allow create: if isStudent();
+        allow read, update: if (isSignedIn() && (isOwner(resource.data.studentId) || isAssignedTrainer(resource.data.studentId)));
+        allow list: if isTrainer() && request.query.where.path == "trainerId" && request.query.where.op == "==" && request.query.where.value == request.auth.uid;
+        
+        match /feedback_thread/{messageId} {
+             allow read, create: if (isSignedIn() && (isOwner(get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId) || isAssignedTrainer(get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId)));
+             allow update, delete: if false;
+        }
+    }
+    
+    // Collection: plans
+    match /plans/{planId} {
+        allow create, update, delete: if isTrainer() && request.resource.data.trainerId == request.auth.uid;
+        allow read: if isSignedIn();
+    }
+    
+    // Collection: notifications
+    match /notifications/{notificationId} {
+        allow create: if false; 
+        allow read, delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+        allow list: if isTrainer() && request.query.where.path == "recipientId" && request.query.where.op == "==" && request.query.where.value == request.auth.uid;
+    }
+    
+    // Collection: email_queue
+    match /email_queue/{emailId} {
+        allow create, read, delete: if false;
+    }
+  }
+}
