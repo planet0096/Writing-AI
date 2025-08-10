@@ -1,6 +1,4 @@
-
 rules_version = '2';
-
 service firebase.storage {
   match /b/{bucket}/o {
   
@@ -14,21 +12,24 @@ service firebase.storage {
                    && request.resource.contentType.matches('image/.*');
     }
     
-    // Logos: Allow any authenticated user to write their own logo.
+    // Logos: Allow any authenticated user (trainer) to write their own logo.
     // The file must be under 2MB.
     // Public read is allowed so logos can be displayed to students.
-    match /logos/{userId}/{fileName} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId
-                   && request.resource.size < 2 * 1024 * 1024
-                   && request.resource.contentType.matches('image/.*');
+    match /logos/{userId}/logo {
+       allow read: if true;
+       allow write: if request.auth != null && request.auth.uid == userId
+                    && request.resource.size < 2 * 1024 * 1024
+                    && request.resource.contentType.matches('image/.*');
     }
-
-    // Test Images: Allow authenticated users (trainers) to upload images for tests.
+    
+    // Test Images: Allow authenticated users (trainers) to upload images for tests
+    // The image must be under 2MB.
     // Public read is allowed so students can see the test images.
     match /test_images/{userId}/{fileName} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+        allow read: if true;
+        allow write: if request.auth != null && request.auth.uid == userId
+                     && request.resource.size < 2 * 1024 * 1024
+                     && request.resource.contentType.matches('image/.*');
     }
   }
 }

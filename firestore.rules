@@ -1,102 +1,111 @@
-
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions to improve readability
+    // Helper functions
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-    
     function isTrainer() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'trainer';
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'trainer';
+    }
+    
+    function isStudent() {
+        return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student';
+    }
+    
+    function isOwner(userId) {
+        return request.auth.uid == userId;
+    }
+    
+    function isAssignedTrainer(studentId) {
+        let studentDoc = get(/databases/$(database)/documents/users/$(studentId)).data;
+        return studentDoc.assignedTrainerId == request.auth.uid;
     }
 
-    // Rules for the 'users' collection
+    // Collection: users
     match /users/{userId} {
-      // Any authenticated user can create a user document (for signup)
-      allow create: if isSignedIn();
+      // Anyone can create a user account (signup)
+      allow create: if true;
       
-      // Users can read/update their own profile. Trainers can read their assigned students' profiles.
-      allow read, update: if isOwner(userId) || (isTrainer() && get(/databases/$(database)/documents/users/$(userId)).data.assignedTrainerId == request.auth.uid);
+      // Trainers can list their own students. This rule is what fixes the dashboard query.
+      allow list: if isTrainer() && request.query.where.get('assignedTrainerId') == request.auth.uid;
       
-      // Users can only delete their own accounts
-      allow delete: if isOwner(userId);
+      // Users can only read/update their own profile
+      // Trainers can read their assigned students' data
+      allow read: if isSignedIn() && (isOwner(userId) || isAssignedTrainer(userId));
 
-      // Rules for private subcollections within user documents
+      allow update: if (isSignedIn() && isOwner(userId)) || 
+                     (isTrainer() && isAssignedTrainer(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['credits', 'currentPlan', 'accountStatus', 'assignedTrainerId']));
+
+      // Private subcollections for settings
       match /private_details/{docId} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if isSignedIn() && isOwner(userId);
       }
       
-      // Rules for credit transaction subcollection
+      // Credit transactions subcollection
       match /credit_transactions/{transactionId} {
-        // Only the user themselves or their assigned trainer can read transactions.
-        allow read: if isOwner(userId) || isTrainer() && resource.data.trainerId == request.auth.uid;
-        // Writes are handled by backend functions/transactions which have admin access.
-        allow create, update, delete: if false; 
+          // A user can read their own transactions
+          allow read: if isSignedIn() && isOwner(userId);
+          // Only backend/server logic should create transactions (via a transaction)
+          allow create, update, delete: if false; 
       }
     }
     
-    // Rules for collection group queries
+    // Collection Group: credit_transactions (for trainer sales dashboard)
     match /{path=**}/credit_transactions/{transactionId} {
-      // Allow trainers to perform collection group queries on transactions they are associated with.
-      // This is essential for the Sales dashboard.
-      allow read: if isTrainer() && resource.data.trainerId == request.auth.uid;
+        // Allow trainers to read transactions where they are listed as the trainerId
+        allow read: if isTrainer() && get(resource.path).data.trainerId == request.auth.uid;
     }
 
-    // Rules for the 'tests' collection
+    // Collection: tests
     match /tests/{testId} {
-      // Only trainers can create/update/delete tests.
-      allow create, update, delete: if isSignedIn() && isTrainer();
-      
-      // Any user (student or trainer) can read test details.
-      // This is also required for public test pages.
-      allow read: if true;
-    }
-
-    // Rules for the 'submissions' collection
-    match /submissions/{submissionId} {
-      // Students can create submissions.
-      allow create: if isSignedIn() && request.resource.data.studentId == request.auth.uid;
-
-      // Read/Update access is granted to the student who owns it or the assigned trainer.
-      allow read, update: if isSignedIn() && (isOwner(resource.data.studentId) || isOwner(resource.data.trainerId));
-      
-      // No one can delete submissions directly.
-      allow delete: if false;
-
-      // Rules for the feedback thread subcollection
-      match /feedback_thread/{messageId} {
-         // The student who owns the submission or the trainer can read/write to the thread.
-         allow read, create, update: if isSignedIn() && (isOwner(get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId) || isOwner(get(/databases/$(database)/documents/submissions/$(submissionId)).data.trainerId));
-      }
-    }
-
-    // Rules for the 'plans' collection
-    match /plans/{planId} {
-      // Only trainers can create/update/delete credit plans.
-      allow create, update, delete: if isSignedIn() && isTrainer() && request.resource.data.trainerId == request.auth.uid;
-      
-      // Any authenticated user can view plans.
-      allow read: if isSignedIn();
+        // Only trainers can create/update/delete tests that they own
+        allow create: if isTrainer();
+        allow update, delete: if isTrainer() && resource.data.trainerId == request.auth.uid;
+        
+        // Any signed-in user can read tests
+        allow read: if isSignedIn();
     }
     
-    // Rules for notifications
+    // Collection: submissions
+    match /submissions/{submissionId} {
+        // Students can create a submission
+        allow create: if isStudent();
+        
+        // Only the student who made it or their assigned trainer can read/update it
+        allow read, update: if (isSignedIn() && (isOwner(resource.data.studentId) || isAssignedTrainer(resource.data.studentId)));
+        
+        // Feedback subcollection
+        match /feedback_thread/{messageId} {
+             allow read, create: if (isSignedIn() && isOwner(resource.data.studentId)) || (isTrainer() && isAssignedTrainer(get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId));
+             allow update, delete: if false; // Don't allow editing messages
+        }
+    }
+    
+    // Collection: plans
+    match /plans/{planId} {
+        // Trainers can manage their own plans
+        allow create, update, delete: if isTrainer() && resource.data.trainerId == request.auth.uid;
+        
+        // All signed-in users can read plans
+        allow read: if isSignedIn();
+    }
+    
+    // Collection: notifications
     match /notifications/{notificationId} {
-        // Backend can create. Users can read/delete their own.
-        allow create: if false;
+        // Only backend can create
+        allow create: if false; 
+        // Only the recipient can read/delete
         allow read, delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
     }
     
-    // Rules for email queue
+    // Collection: email_queue
     match /email_queue/{emailId} {
-      // Only backend processes can access this collection.
-      allow read, write: if false;
+        // Only backend can create/read/delete
+        allow create, read, delete: if false;
     }
+
   }
 }
