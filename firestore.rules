@@ -4,80 +4,95 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
   
-    // Default deny all
-    match /{document=**} {
-      allow read, write: if false;
+    // Helper function to check if a user is a trainer
+    function isTrainer(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.role == 'trainer';
     }
     
-    // USERS
-    // Users can read their own data.
-    // Users can update their own non-sensitive data.
-    // Anyone can create a user (for signup).
-    match /users/{userId} {
-      allow read: if request.auth.uid == userId;
-      allow update: if request.auth.uid == userId 
-                    && !('role' in request.resource.data) 
-                    && !('credits' in request.resource.data)
-                    && !('assignedTrainerId' in request.resource.data && request.resource.data.assignedTrainerId != resource.data.assignedTrainerId);
-      allow create: if request.auth.uid == userId;
+    // Helper function to check if user is the assigned trainer for a student
+    function isAssignedTrainer(studentId, trainerId) {
+      return get(/databases/$(database)/documents/users/$(studentId)).data.assignedTrainerId == trainerId;
+    }
+    
+    // Helper function to check if student is assigned to the current user
+     function isMyStudent(studentId) {
+      return get(/databases/$(database)/documents/users/$(studentId)).data.assignedTrainerId == request.auth.uid;
+    }
 
-      // Allow trainers to update specific fields on their students
-      allow update: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'trainer'
-                    && resource.data.assignedTrainerId == request.auth.uid
-                    && request.resource.data.keys().hasOnly(['credits', 'currentPlan', 'accountStatus', 'assignedTrainerId']);
-                    
-      // Secure API key storage
-      match /private_details/api_settings {
-        allow read, write: if request.auth.uid == userId;
+    match /users/{userId} {
+      // Allow user to create their own account document
+      allow create: if request.auth != null && request.auth.uid == userId;
+
+      // Allow user to read/update their own info
+      allow get, update: if request.auth != null && request.auth.uid == userId;
+      
+      // Allow a student to read their trainer's profile for branding/info
+      allow get: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.assignedTrainerId == userId;
+      
+      // Allow a trainer to read their students' profiles
+      allow get: if request.auth != null && isTrainer(request.auth.uid) && isAssignedTrainer(userId, request.auth.uid);
+      
+      // Allow a trainer to update their student's credits or plan info
+      allow update: if request.auth != null && isTrainer(request.auth.uid) && isMyStudent(userId) && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['credits', 'currentPlan', 'assignedTrainerId', 'accountStatus']));
+      
+      // Sub-collections for a user
+      match /private_details/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      match /credit_transactions/{transactionId} {
+          // A user can read their own transactions
+          allow get, list: if request.auth != null && request.auth.uid == userId;
+          // Only a trainer can create transactions for their student (adjustments/assignments)
+          allow create: if request.auth != null && isTrainer(request.auth.uid) && isMyStudent(userId);
       }
     }
     
-    // TESTS
-    // Allow logged-in users to read tests.
-    // Allow trainers to create, update, and delete their own tests.
     match /tests/{testId} {
-        allow read: if request.auth != null;
-        allow create, update, delete: if request.auth != null && request.resource.data.trainerId == request.auth.uid;
-    }
-
-    // SUBMISSIONS
-    // Students can create submissions.
-    // Students can read their own submissions.
-    // Trainers can read submissions made to them.
-    // Students can update evaluation type after creation.
-    // Trainers can update feedback on submissions to them.
-    match /submissions/{submissionId} {
-        allow create: if request.auth != null && request.resource.data.studentId == request.auth.uid;
-        allow read: if request.auth != null && (resource.data.studentId == request.auth.uid || resource.data.trainerId == request.auth.uid);
-        allow update: if request.auth != null && (
-                        (resource.data.studentId == request.auth.uid && request.resource.data.keys().hasOnly(['evaluationType'])) ||
-                        (resource.data.trainerId == request.auth.uid && request.resource.data.keys().hasOnly(['feedback', 'status', 'evaluatedAt', 'trainerNotes']))
-                      );
-        
-        // Conversation thread on submissions
-        match /feedback_thread/{messageId} {
-            allow read: if request.auth != null && (resource.data.authorId == request.auth.uid || get(/databases/$(database)/documents/submissions/$(submissionId)).data.trainerId == request.auth.uid);
-            allow create: if request.auth != null && request.resource.data.authorId == request.auth.uid && (get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId == request.auth.uid || get(/databases/$(database)/documents/submissions/$(submissionId)).data.trainerId == request.auth.uid);
-        }
-    }
-
-    // PLANS
-    // Trainers can manage their own plans.
-    // Students can read plans of their assigned trainer.
-    match /plans/{planId} {
-        allow create, update, delete: if request.auth != null && request.resource.data.trainerId == request.auth.uid;
-        allow read: if request.auth != null && (
-                      (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student' && resource.data.trainerId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.assignedTrainerId) ||
-                      (resource.data.trainerId == request.auth.uid)
-                    );
+      // Trainers can create, read, update, delete their own tests
+      allow read, create, update, delete: if request.auth != null && isTrainer(request.auth.uid) && request.resource.data.trainerId == request.auth.uid;
+      // Students can read tests from their assigned trainer
+      allow get, list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.assignedTrainerId == resource.data.trainerId;
     }
     
-    // NOTIFICATIONS
-    // Users can read their own notifications.
-    // Students can create notifications for their trainers (manual payment proof).
+     match /plans/{planId} {
+      // Trainers can manage their own plans
+      allow create, update, delete: if request.auth != null && isTrainer(request.auth.uid) && request.resource.data.trainerId == request.auth.uid;
+      // Students can read plans from their assigned trainer
+      allow get, list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.assignedTrainerId == resource.data.trainerId;
+    }
+
+    match /submissions/{submissionId} {
+      // A student can create their own submission
+      allow create: if request.auth != null && request.resource.data.studentId == request.auth.uid;
+      // Read access for the student who owns it, or their assigned trainer
+      allow get: if request.auth != null && (resource.data.studentId == request.auth.uid || resource.data.trainerId == request.auth.uid);
+      // List access for student (their own) and trainer (their students')
+      allow list: if request.auth != null && (request.query.limit <= 10 && ((request.query.studentId == request.auth.uid) || (request.query.trainerId == request.auth.uid)));
+      // Update access for evaluation type (student) or feedback (trainer)
+      allow update: if request.auth != null && 
+        ( (request.resource.data.studentId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['evaluationType'])) ||
+          (resource.data.trainerId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['feedback', 'status', 'evaluatedAt'])) );
+          
+      // Feedback thread subcollection
+      match /feedback_thread/{messageId} {
+        // Allow read/write for the student or trainer associated with the submission
+        allow read, create: if request.auth != null && (get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId == request.auth.uid || get(/databases/$(database)/documents/submissions/$(submissionId)).data.trainerId == request.auth.uid);
+        allow update: if request.auth != null && (get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId == request.auth.uid || get(/databases/$(database)/documents/submissions/$(submissionId)).data.trainerId == request.auth.uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
+      }
+    }
+    
+     match /email_queue/{emailId} {
+      // Only authenticated users can queue emails, and only for their assigned trainer.
+      allow create: if request.auth != null && (request.resource.data.trainerId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.assignedTrainerId || request.resource.data.trainerId == request.auth.uid);
+    }
+    
     match /notifications/{notificationId} {
-      allow read, delete: if request.auth != null && resource.data.recipientId == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.type == 'manual_payment_proof';
+        // Can be created by a student for their trainer
+        allow create: if request.auth != null && request.resource.data.recipientId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.assignedTrainerId;
+        // Can be read/deleted by the recipient trainer
+        allow get, delete: if request.auth != null && resource.data.recipientId == request.auth.uid;
+        allow list: if request.auth != null && request.query.recipientId == request.auth.uid;
     }
   }
 }
