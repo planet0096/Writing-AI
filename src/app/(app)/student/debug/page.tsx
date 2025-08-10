@@ -33,6 +33,7 @@ export default function StudentDebugPage() {
     const { user, assignedTrainerId } = useAuth();
     const [results, setResults] = useState<Record<string, TestResult>>({
         ownProfile: { status: 'idle', error: null },
+        assignedTrainerProfile: { status: 'idle', error: null },
         assignedTests: { status: 'idle', error: null },
         mySubmissions: { status: 'idle', error: null },
         creditHistory: { status: 'idle', error: null },
@@ -61,6 +62,11 @@ export default function StudentDebugPage() {
     const testOwnProfileQuery = () => {
         if (!user) return Promise.reject("Not authenticated");
         return getDoc(doc(db, 'users', user.uid));
+    };
+
+    const testAssignedTrainerProfileQuery = () => {
+        if (!user || !assignedTrainerId) return Promise.reject("Not authenticated or no trainer assigned");
+        return getDoc(doc(db, 'users', assignedTrainerId));
     };
     
     const testAssignedTestsQuery = () => {
@@ -91,6 +97,7 @@ export default function StudentDebugPage() {
 
     const tests = [
         { name: 'Own Profile Query', key: 'ownProfile', fn: testOwnProfileQuery, description: "Fetches your own user document. (Used in all pages)" },
+        { name: 'Assigned Trainer Profile Query', key: 'assignedTrainerProfile', fn: testAssignedTrainerProfileQuery, description: "Fetches your trainer's public profile. (Used in 'My Tests')" },
         { name: 'Assigned Tests Query', key: 'assignedTests', fn: testAssignedTestsQuery, description: "Fetches tests from your assigned trainer. (Used in 'My Tests')" },
         { name: 'My Submissions Query', key: 'mySubmissions', fn: testMySubmissionsQuery, description: "Fetches all your past submissions. (Used in 'My Submissions')" },
         { name: 'Credit History Query', key: 'creditHistory', fn: testCreditHistoryQuery, description: "Fetches your credit purchase and spend history. (Used in 'My Credits')" },
@@ -126,7 +133,7 @@ export default function StudentDebugPage() {
                             <div className="flex items-center gap-4">
                                 <StatusIndicator status={results[test.key].status} />
                                 <Button 
-                                    onClick={() => runTest(test.key, test.fn, test.expectFail)} 
+                                    onClick={() => runTest(test.key, test.fn, (test as any).expectFail)} 
                                     disabled={results[test.key].status === 'running'}
                                     variant="outline"
                                 >
