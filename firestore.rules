@@ -1,4 +1,3 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -21,18 +20,21 @@ service cloud.firestore {
     }
     
     function isAssignedTrainer(studentId) {
-        let studentDoc = get(/databases/$(database)/documents/users/$(studentId)).data;
-        return studentDoc.assignedTrainerId == request.auth.uid;
+        let studentDoc = get(/databases/$(database)/documents/users/$(studentId));
+        // Check if studentDoc and its data exists before accessing fields
+        return studentDoc != null && 'data' in studentDoc && 'assignedTrainerId' in studentDoc.data && studentDoc.data.assignedTrainerId == request.auth.uid;
     }
 
     // Collection: users
     match /users/{userId} {
       allow create: if true;
+
+      // A user can read/update their own profile, or a trainer can read/update their assigned student
       allow read, update: if isSignedIn() && (isOwner(userId) || isAssignedTrainer(userId));
-
-      // Secure list rule: A trainer can list users ONLY IF they are querying by their own trainerId.
-      allow list: if isTrainer() && request.query.where.assignedTrainerId == request.auth.uid;
-
+      
+      // Trainers can LIST users but ONLY if they are querying for their own students.
+      allow list: if isTrainer() && request.query.get('where') != null && request.query.where.get('assignedTrainerId') == request.auth.uid;
+      
       match /private_details/{docId} {
         allow read, write: if isSignedIn() && isOwner(userId);
       }
@@ -43,50 +45,48 @@ service cloud.firestore {
       }
     }
     
-    // Collection Group: credit_transactions (for trainer sales dashboard)
+    // Collection Group for sales dashboard
     match /{path=**}/credit_transactions/{transactionId} {
-        // Allow trainers to read transactions where they are listed as the trainerId
-        allow read: if isTrainer() && resource.data.trainerId == request.auth.uid;
+      allow read: if isTrainer() && resource.data.trainerId == request.auth.uid;
     }
 
     // Collection: tests
     match /tests/{testId} {
-        allow create, update, delete: if isTrainer() && request.resource.data.trainerId == request.auth.uid;
-        allow read: if isSignedIn();
+      allow create, update, delete: if isTrainer() && request.resource.data.trainerId == request.auth.uid;
+      allow read: if isSignedIn();
     }
     
     // Collection: submissions
     match /submissions/{submissionId} {
-        allow create: if isStudent();
-        allow read, update: if isSignedIn() && (isOwner(resource.data.studentId) || isAssignedTrainer(resource.data.studentId));
-        
-        // Secure list rule: A trainer can list submissions ONLY IF they are querying by their own trainerId.
-        // This is more flexible and allows for additional client-side filters (like status).
-        allow list: if isTrainer() && request.query.where.trainerId == request.auth.uid;
-        
-        match /feedback_thread/{messageId} {
-             allow read, create: if (isSignedIn() && (isOwner(get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId) || isAssignedTrainer(get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId)));
-             allow update, delete: if false;
-        }
+      allow create: if isStudent();
+      allow read, update: if (isSignedIn() && (isOwner(resource.data.studentId) || isAssignedTrainer(resource.data.studentId)));
+      
+      // Trainers can LIST submissions but ONLY if they are querying for their own submissions.
+      allow list: if isTrainer() && request.query.get('where') != null && request.query.where.get('trainerId') == request.auth.uid;
+      
+      match /feedback_thread/{messageId} {
+        allow read, create: if (isSignedIn() && (isOwner(get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId) || isAssignedTrainer(get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId)));
+        allow update, delete: if false;
+      }
     }
     
     // Collection: plans
     match /plans/{planId} {
-        allow create, update, delete: if isTrainer() && request.resource.data.trainerId == request.auth.uid;
-        allow read: if isSignedIn();
+      allow create, update, delete: if isTrainer() && request.resource.data.trainerId == request.auth.uid;
+      allow read: if isSignedIn();
     }
     
     // Collection: notifications
     match /notifications/{notificationId} {
-        allow create: if true;
-        allow read, delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
-        allow list: if isTrainer() && request.query.where.recipientId == request.auth.uid;
+      allow create: if true; 
+      allow read, delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+      allow list: if isTrainer() && request.query.get('where') != null && request.query.where.get('recipientId') == request.auth.uid;
     }
     
     // Collection: email_queue
     match /email_queue/{emailId} {
-        allow create: if isSignedIn();
-        allow read, write, delete: if false;
+      allow create: if isSignedIn();
+      allow read, write, delete: if false;
     }
   }
 }
