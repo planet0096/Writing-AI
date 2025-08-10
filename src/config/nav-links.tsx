@@ -1,6 +1,6 @@
 
 
-import { LayoutDashboard, BookCopy, BarChart3, Users, Settings, CreditCard, FileText } from "lucide-react";
+import { LayoutDashboard, BookCopy, BarChart3, Users, Settings, CreditCard, FileText, Bug } from "lucide-react";
 
 export const NAV_LINKS = {
     student: [
@@ -18,6 +18,7 @@ export const NAV_LINKS = {
         { href: '/trainer/submissions', label: 'Submissions', icon: <FileText /> },
         { href: '/trainer/students', label: 'Students', icon: <Users /> },
         { href: '/trainer/plans', label: 'Credit Plans', icon: <CreditCard /> },
-        { href: '/trainer/settings', label: 'Settings', icon: <Settings /> }
+        { href: '/trainer/settings', label: 'Settings', icon: <Settings /> },
+        { href: '/trainer/debug', label: 'Debug', icon: <Bug /> }
     ]
 };
