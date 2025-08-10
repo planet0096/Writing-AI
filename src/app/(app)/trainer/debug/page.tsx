@@ -45,7 +45,7 @@ export default function DebugPage() {
             await testFn();
             setResults(prev => ({ ...prev, [testName]: { status: 'success', error: null } }));
         } catch (error: any) {
-            console.error(`DEBUG: Firestore query failed for [${testName}]`, error);
+            console.error(`DEBUGGER PAGE [${testName}]:`, error);
             setResults(prev => ({ ...prev, [testName]: { status: 'error', error: error.message } }));
         }
     };
@@ -105,7 +105,7 @@ export default function DebugPage() {
             <div className="space-y-1">
                 <h1 className="text-2xl font-bold text-slate-800">Firestore Rules Debugger</h1>
                 <p className="text-sm text-slate-600">
-                    Run these tests to identify which Firestore queries are failing due to permission errors. Check the browser's developer console for detailed error messages.
+                    Run these tests to identify which Firestore queries are failing due to permission errors. The full error message from Firebase will be displayed below upon failure.
                 </p>
             </div>
 
@@ -121,7 +121,9 @@ export default function DebugPage() {
                                 <h3 className="font-semibold">{test.name}</h3>
                                 <p className="text-sm text-muted-foreground">{test.description}</p>
                                 {results[test.key].status === 'error' && (
-                                     <p className="text-xs text-red-600 mt-1 break-all">Error: {results[test.key].error}</p>
+                                     <p className="text-xs text-red-600 mt-2 p-2 bg-red-50 rounded-md font-mono">
+                                        <b>Error Details:</b> {results[test.key].error}
+                                     </p>
                                 )}
                             </div>
                             <div className="flex items-center gap-4">
