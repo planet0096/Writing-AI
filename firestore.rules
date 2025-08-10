@@ -2,98 +2,110 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- Helper Functions ---
+    // =========== Helper Functions ===========
     function isSignedIn() {
       return request.auth != null;
     }
-
     function isOwner(userId) {
-      return request.auth.uid == userId;
+        return request.auth.uid == userId;
     }
-
+    function getRole(uid) {
+      // Safely access role, default to null if user doc doesn't exist
+      return get(/databases/$(database)/documents/users/$(uid)).data.role;
+    }
     function isTrainer() {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'trainer';
+      return isSignedIn() && getRole(request.auth.uid) == 'trainer';
     }
-    
+     function isStudent() {
+      return isSignedIn() && getRole(request.auth.uid) == 'student';
+    }
     function isAssignedTrainer(studentId) {
-        let studentDoc = get(/databases/$(database)/documents/users/$(studentId)).data;
-        return isSignedIn() && studentDoc.assignedTrainerId == request.auth.uid;
+      let studentDoc = get(/databases/$(database)/documents/users/$(studentId)).data;
+      return isSignedIn() && isTrainer() && studentDoc.assignedTrainerId == request.auth.uid;
     }
 
-    // --- Collection Rules ---
+    // =========== Collection Rules ===========
 
-    // USERS
-    // Anyone can create a user account.
-    // A user can read/update their own document.
-    // An assigned trainer can read their student's document.
-    // A trainer can list their own students.
+    // Users Collection
+    // Rules for user documents in the /users collection
     match /users/{userId} {
+      // Anyone can create a user account (signup)
       allow create: if true;
+      // Users can read/update their own document. Trainers can read/update their students' documents.
       allow read, update: if isSignedIn() && (isOwner(userId) || isAssignedTrainer(userId));
-      allow list: if isTrainer(); // Simplified rule for listing students
+      // Trainers can list users that are assigned to them
+      allow list: if isTrainer();
 
-      // Users can only manage their own private details.
+      // Private Details Subcollection
+      // Only the owner can read/write their own private details
       match /private_details/{docId} {
-        allow read, write: if isSignedIn() && isOwner(userId);
+        allow read, write: if isOwner(userId);
       }
       
-      // Credit transactions can be created by any signed-in user.
-      // They can be read by the student or their assigned trainer.
+      // Credit Transactions Subcollection
+      // Users can read their own transactions. Trainers can read their students' transactions.
       match /credit_transactions/{transactionId} {
-        allow create: if isSignedIn();
         allow read: if isSignedIn() && (isOwner(userId) || isAssignedTrainer(userId));
+        // Transactions are created via backend/secure flows, not directly by clients
+        allow create: if isSignedIn();
+        allow update, delete: if false;
       }
     }
     
-    // A Collection Group rule to allow trainers to read all transactions associated with them for the sales dashboard.
+    // Credit Transactions Collection Group
+    // Trainers can read any transaction where they are the trainerId (for the Sales page)
     match /{path=**}/credit_transactions/{transactionId} {
       allow read: if isTrainer() && resource.data.trainerId == request.auth.uid;
     }
-
-    // TESTS
-    // Any signed-in user can read tests.
-    // Only the trainer who created the test can manage it.
+    
+    // Tests Collection
+    // Any signed-in user can read tests
     match /tests/{testId} {
       allow read: if isSignedIn();
+      // Only trainers can manage tests they own
       allow create, update, delete: if isTrainer() && request.resource.data.trainerId == request.auth.uid;
     }
-    
-    // SUBMISSIONS
-    // Submissions can be created by any signed-in user.
-    // They can be read/updated by the student who owns it or their assigned trainer.
-    // Trainers can list submissions associated with them.
-    match /submissions/{submissionId} {
-      allow create: if isSignedIn();
-      allow read, update: if isSignedIn() && (isOwner(resource.data.studentId) || isAssignedTrainer(resource.data.studentId));
-      allow list: if isTrainer(); // Simplified rule for listing submissions
 
-      // Anyone involved in a submission can read/create messages in its feedback thread.
+    // Submissions Collection
+    match /submissions/{submissionId} {
+      // Students can create submissions
+      allow create: if isStudent();
+      // Students can read/update their own submissions. Trainers can read/update their students' submissions.
+      allow read, update: if isSignedIn() && (isOwner(resource.data.studentId) || isAssignedTrainer(resource.data.studentId));
+      // Trainers can list submissions.
+      allow list: if isTrainer();
+      
+      // Feedback Thread Subcollection (for conversations)
       match /feedback_thread/{messageId} {
         allow read, create: if isSignedIn() && (isOwner(get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId) || isAssignedTrainer(get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId));
+        allow update, delete: if false;
       }
     }
     
-    // PLANS
-    // Any signed-in user can read plans.
-    // Only the trainer who created the plan can manage it.
+    // Plans Collection
+    // Any signed-in user can read credit plans
     match /plans/{planId} {
       allow read: if isSignedIn();
+      // Only trainers can manage plans they own
       allow create, update, delete: if isTrainer() && request.resource.data.trainerId == request.auth.uid;
     }
-    
-    // NOTIFICATIONS
-    // Any signed-in user can create a notification.
-    // Only the recipient can read or delete their notifications.
+
+    // Notifications Collection
     match /notifications/{notificationId} {
+      // The app can create notifications
       allow create: if isSignedIn();
-      allow read, delete, list: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+      // Users can read/delete notifications sent to them
+      allow read, delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+      // Users can list notifications sent to them
+      allow list: if isSignedIn() && request.query.where[0][2] == request.auth.uid;
     }
-    
-    // EMAIL QUEUE
-    // The app can create emails to be sent, but no one can read or delete them from the client-side.
+
+    // Email Queue Collection
+    // The app can queue emails to be sent
     match /email_queue/{emailId} {
       allow create: if isSignedIn();
-      allow read, write, delete: if false;
+      // Only backend functions should process this queue
+      allow read, update, delete: if false;
     }
   }
 }
