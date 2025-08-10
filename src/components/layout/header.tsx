@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -23,7 +24,11 @@ export default function Header() {
 
 
   useEffect(() => {
-    if (!user) return;
+    // Only trainers should listen for these specific notifications.
+    if (!user || role !== 'trainer') {
+        setUnreadNotifications(0);
+        return;
+    };
 
     const notificationsQuery = query(
       collection(db, 'notifications'),
@@ -33,10 +38,13 @@ export default function Header() {
 
     const unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
       setUnreadNotifications(snapshot.size);
+    }, (error) => {
+        // This will help debug if the trainer themselves has an issue.
+        console.error("Error listening to notifications:", error);
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, role]);
 
   const handleLogout = async () => {
     try {
@@ -64,15 +72,17 @@ export default function Header() {
         <div className="flex flex-1 items-center justify-end space-x-2">
           {!loading && user && (
                 <>
-                 <Button variant="ghost" size="icon" className="relative">
-                    <Bell className="h-5 w-5" />
-                    {unreadNotifications > 0 && (
-                      <span className="absolute top-1 right-1 flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                      </span>
-                    )}
-                  </Button>
+                 {role === 'trainer' && (
+                    <Button variant="ghost" size="icon" className="relative">
+                        <Bell className="h-5 w-5" />
+                        {unreadNotifications > 0 && (
+                        <span className="absolute top-1 right-1 flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                        </span>
+                        )}
+                    </Button>
+                 )}
                  <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="relative h-8 w-8 rounded-full">
