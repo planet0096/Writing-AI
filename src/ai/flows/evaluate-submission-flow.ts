@@ -15,24 +15,28 @@ import { z } from 'zod';
 
 
 // A plugin to dynamically provide the API key
-const dynamicApiKeyPlugin = (getApiKey: () => Promise<string | undefined>) => {
+const dynamicApiKeyPlugin = (getApiKey: (trainerId: string) => Promise<string | undefined>) => {
   return {
     name: 'dynamic-api-key-plugin',
     async onInit() {},
     async onFlow(flow, payload, stream) {
-      const apiKey = await getApiKey();
+      if (!payload || !(payload as any).trainerId) {
+        return; // Let Genkit handle missing API key if no trainerId is provided
+      }
+      const apiKey = await getApiKey((payload as any).trainerId);
       if (!apiKey) {
-        // Let Genkit handle the error for missing API key if it still can't find one.
-        return;
+        return; // Let Genkit handle the error
       }
       // Re-configure the googleAI plugin for this flow execution
       configureGenkit({
         plugins: [
           googleAI({ apiKey: apiKey }),
+          // Note: When re-configuring, other plugins might need to be re-added if they are needed in the flow.
         ],
-        flowStateStore: 'firebase',
-        traceStore: 'firebase',
-        cacheStore: 'firebase'
+        // Important: Re-add other global configurations if necessary
+        // flowStateStore: 'firebase',
+        // traceStore: 'firebase',
+        // cacheStore: 'firebase'
       });
     },
   };
@@ -102,13 +106,8 @@ const evaluateSubmissionFlow = ai.defineFlow(
     inputSchema: EvaluateSubmissionInputSchema,
     outputSchema: z.void(),
     plugins: [
-        dynamicApiKeyPlugin(async () => {
-          // This relies on the payload to contain the trainerId
-          const payload = (evaluateSubmissionFlow as any).getPayload();
-          if (!payload || !payload.trainerId) {
-            return process.env.GEMINI_API_KEY;
-          }
-          const trainerSettingsRef = doc(db, 'users', payload.trainerId, 'private_details', 'api_settings');
+        dynamicApiKeyPlugin(async (trainerId: string) => {
+          const trainerSettingsRef = doc(db, 'users', trainerId, 'private_details', 'api_settings');
           const settingsSnap = await getDoc(trainerSettingsRef);
           return settingsSnap.exists() ? settingsSnap.data().geminiApiKey : process.env.GEMINI_API_KEY;
         })

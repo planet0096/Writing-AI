@@ -6,11 +6,11 @@ service cloud.firestore {
     function isSignedIn() {
       return request.auth != null;
     }
-    function getRole(uid) {
-      return get(/databases/$(database)/documents/users/$(uid)).data.role;
-    }
     function isOwner(userId) {
       return request.auth.uid == userId;
+    }
+    function getRole(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.role;
     }
     function isTrainer() {
       return isSignedIn() && getRole(request.auth.uid) == 'trainer';
@@ -23,18 +23,17 @@ service cloud.firestore {
       return isSignedIn() && studentDoc.assignedTrainerId == request.auth.uid;
     }
     function isTheirAssignedStudent(trainerId) {
-        let studentDoc = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-        return isSignedIn() && studentDoc.assignedTrainerId == trainerId;
+      let studentDoc = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return studentDoc.assignedTrainerId == trainerId;
     }
 
     // USER COLLECTIONS
     match /users/{userId} {
       allow create: if true;
-      // A user can be read if they are the owner, if the requester is their trainer, OR if the requester is their assigned student.
       allow read: if isSignedIn() && (isOwner(userId) || isAssignedTrainer(userId) || isTheirAssignedStudent(userId));
       allow update: if isSignedIn() && isOwner(userId);
       
-      allow list: if isTrainer() &&
+      allow list: if isTrainer() && request.query.where.size() > 0 &&
                    request.query.where[0][0] == 'assignedTrainerId' &&
                    request.query.where[0][2] == request.auth.uid;
 
@@ -44,19 +43,18 @@ service cloud.firestore {
       match /credit_transactions/{transactionId} {
         allow create: if isSignedIn();
         allow read: if isSignedIn() && (isOwner(userId) || isAssignedTrainer(userId));
-        allow list: if isSignedIn() && (isOwner(userId) || isAssignedTrainer(userId));
       }
     }
     
     // COLLECTION GROUP for sales dashboard
     match /{path=**}/credit_transactions/{transactionId} {
-      allow list: if isTrainer() && resource.data.trainerId == request.auth.uid;
+      allow read: if isTrainer() && resource.data.trainerId == request.auth.uid;
     }
 
     // TESTS COLLECTION
     match /tests/{testId} {
-      allow read: if isSignedIn();
-      allow list: if isSignedIn();
+      // Public pages need to read this during build time
+      allow read: if true;
       allow create, update, delete: if isTrainer() && request.resource.data.trainerId == request.auth.uid;
     }
     
@@ -65,8 +63,9 @@ service cloud.firestore {
       allow create: if isStudent();
       allow read, update: if isSignedIn() && (isOwner(resource.data.studentId) || isAssignedTrainer(resource.data.studentId));
       
-      allow list: if (isTrainer() && request.query.where[0][2] == request.auth.uid) || 
-                     (isStudent() && request.query.where[0][2] == request.auth.uid);
+      allow list: if isSignedIn() && 
+                   ((isTrainer() && request.query.trainerId == request.auth.uid) || 
+                    (isStudent() && request.query.studentId == request.auth.uid));
       
       match /feedback_thread/{messageId} {
         allow read, create: if isSignedIn() && (isOwner(get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId) || isAssignedTrainer(get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId));
@@ -80,9 +79,9 @@ service cloud.firestore {
       allow create, update, delete: if isTrainer() && request.resource.data.trainerId == request.auth.uid;
     }
     match /notifications/{notificationId} {
-        allow create: if isSignedIn();
-        allow read, delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
-        allow list: if isSignedIn() && request.query.where[0][2] == request.auth.uid;
+      allow create: if isSignedIn();
+      allow read, delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+      allow list: if isSignedIn() && request.query.where.size() > 0 && request.query.where[0][0] == 'recipientId' && request.query.where[0][2] == request.auth.uid;
     }
     match /email_queue/{emailId} {
       allow create: if isSignedIn();
