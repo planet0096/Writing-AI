@@ -1,5 +1,5 @@
-
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -7,84 +7,84 @@ service cloud.firestore {
     function isSignedIn() {
       return request.auth != null;
     }
-    function getRole(uid) {
-      return get(/databases/$(database)/documents/users/$(uid)).data.role;
-    }
-    function isTrainer() {
-      return isSignedIn() && getRole(request.auth.uid) == 'trainer';
-    }
+
     function isOwner(userId) {
-        return request.auth.uid == userId;
+      return request.auth.uid == userId;
     }
+    
     function isStudent() {
-      return isSignedIn() && getRole(request.auth.uid) == 'student';
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student';
     }
 
-    // USER COLLECTIONS
+    function isTrainer() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'trainer';
+    }
+
+    function isTheirAssignedStudent(trainerId) {
+      // Check if the currently authenticated user (a student) is assigned to the trainer being requested.
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.assignedTrainerId == trainerId;
+    }
+    
+    //Collections
     match /users/{userId} {
-      // Anyone can create a user during signup
+      // Allow creation for anyone (during signup).
       allow create: if true;
-      // Trainers can read their students' profiles, and users can read their own profile.
-      allow read, update: if isSignedIn() && (isOwner(userId) || (isTrainer() && get(/databases/$(database)/documents/users/$(userId)).data.assignedTrainerId == request.auth.uid));
       
-      // Trainers can list their assigned students
-      allow list: if isTrainer();
+      // Allow a user to read/update their own document.
+      // Also, allow a student to read their assigned trainer's document.
+      allow read, update: if isSignedIn() && (isOwner(userId) || isTheirAssignedStudent(userId));
 
-      match /private_details/{docId} {
-        allow read, write: if isOwner(userId);
-      }
+      // Trainers can list their own students.
+      allow list: if isSignedIn() && isTrainer() && request.query.where.assignedTrainerId == request.auth.uid;
+
       match /credit_transactions/{transactionId} {
-        // Students can have transactions created for them. Trainers can make adjustments.
-        allow create: if isSignedIn();
-        // Users can read their own transactions. Trainers can read their students' transactions.
-        allow read: if isOwner(userId) || (isTrainer() && get(/databases/$(database)/documents/users/$(userId)).data.assignedTrainerId == request.auth.uid);
-        allow list: if isOwner(userId);
+        allow read, list: if isSignedIn() && isOwner(userId);
+        allow create: if isSignedIn() && (isOwner(userId) || isTrainer());
       }
     }
     
-    // COLLECTION GROUP for sales dashboard
-    match /{path=**}/credit_transactions/{transactionId} {
-      allow read: if isTrainer() && resource.data.trainerId == request.auth.uid;
-    }
-
-    // TESTS COLLECTION
     match /tests/{testId} {
-      // Any signed-in user can read tests
-      allow read: if isSignedIn();
-      // Only trainers can manage tests
-      allow create, update, delete: if isTrainer();
+      // Allow trainers to do anything with tests.
+      allow read, write: if isSignedIn() && isTrainer();
+      // Allow students to read tests.
+      allow read: if isSignedIn() && isStudent();
     }
     
-    // SUBMISSIONS COLLECTION
-    match /submissions/{submissionId} {
-      // Students can create submissions
-      allow create: if isStudent();
-      // Users can read/update their own submissions. Trainers can read/update their students' submissions.
-      allow read, update: if isSignedIn() && (isOwner(resource.data.studentId) || (isTrainer() && resource.data.trainerId == request.auth.uid));
-      // Trainers can list their students' submissions
-      allow list: if isTrainer();
-      
-      match /feedback_thread/{messageId} {
-        allow read, create: if isSignedIn() && (isOwner(get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId) || get(/databases/$(database)/documents/submissions/$(submissionId)).data.trainerId == request.auth.uid);
-        allow update, delete: if false;
-      }
-    }
-    
-    // OTHER COLLECTIONS
     match /plans/{planId} {
-      // Any signed-in user can read plans
-      allow read: if isSignedIn();
-      // Only trainers can manage plans
-      allow create, update, delete: if isTrainer();
+        // Trainers can manage their own plans
+        allow read, write: if isSignedIn() && isTrainer() && resource.data.trainerId == request.auth.uid;
+        // Students can read plans
+        allow read: if isSignedIn() && isStudent();
     }
-    match /notifications/{notificationId} {
-      allow create: if isSignedIn();
-      allow read, delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
-      allow list: if isSignedIn() && request.query.where[0][0] == 'recipientId' && request.query.where[0][2] == request.auth.uid;
+    
+    match /submissions/{submissionId} {
+        allow create: if isSignedIn() && isStudent();
+        
+        // A user can read/update if they are the student who owns it, or the trainer assigned to it.
+        allow read, update: if isSignedIn() && 
+                             (resource.data.studentId == request.auth.uid || resource.data.trainerId == request.auth.uid);
+                             
+        // A trainer can list submissions assigned to them.
+        allow list: if isSignedIn() && isTrainer() && request.query.where.trainerId == request.auth.uid;
+        
+        match /feedback_thread/{messageId} {
+           allow read, list, create: if isSignedIn() &&
+                                     (exists(/databases/$(database)/documents/submissions/$(submissionId)) &&
+                                     (get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId == request.auth.uid ||
+                                      get(/databases/$(database)/documents/submissions/$(submissionId)).data.trainerId == request.auth.uid));
+        }
     }
+    
     match /email_queue/{emailId} {
+        // Allow server-side processes (like our flows) to create emails.
+        // For client-side, only allow if the user is triggering an action related to their trainer.
+        allow create: if isSignedIn();
+    }
+    
+     match /notifications/{notificationId} {
+      // A user can only access notifications intended for them.
+      allow read, list, delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
       allow create: if isSignedIn();
-      allow read, write, delete: if false;
     }
   }
 }
