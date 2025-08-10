@@ -48,6 +48,7 @@ export default function StudentManagementPage() {
     if (authLoading || !user) return;
 
     const fetchData = async () => {
+      setIsLoading(true);
       try {
         // Fetch students
         const studentsQuery = query(collection(db, 'users'), where('assignedTrainerId', '==', user.uid));
@@ -289,5 +290,3 @@ export default function StudentManagementPage() {
     </div>
   );
 }
-
-    
