@@ -67,8 +67,8 @@ export default function StudentManagementPage() {
         setPlans(plansData);
 
       } catch (error) {
-        console.error("Error fetching data: ", error);
-        toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch students or plans.' });
+        console.error("DEBUG: Failed in fetchData (students page):", error);
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch students or plans. See console for details.' });
       } finally {
         setIsLoading(false);
       }
@@ -84,7 +84,8 @@ export default function StudentManagementPage() {
       setStudents(prev => prev.map(s => s.id === studentId ? { ...s, accountStatus: status } : s));
       toast({ title: 'Success', description: `Student has been ${status === 'active' ? 'unblocked' : 'blocked'}.` });
     } catch (error) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to update student status.' });
+      console.error("DEBUG: Failed in handleStatusChange:", error);
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to update student status. See console for details.' });
     }
   };
 
@@ -95,7 +96,8 @@ export default function StudentManagementPage() {
       setStudents(prev => prev.filter(s => s.id !== studentId));
       toast({ title: 'Success', description: 'Student has been removed from your list.' });
     } catch (error) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to remove student.' });
+      console.error("DEBUG: Failed in handleRemoveStudent:", error);
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to remove student. See console for details.' });
     }
   };
   
@@ -157,7 +159,8 @@ export default function StudentManagementPage() {
         toast({ title: "Success!", description: `${plan.planName} assigned and ${plan.credits} credits added.` });
 
     } catch (error: any) {
-        toast({ variant: "destructive", title: "Error", description: error.message || "Failed to assign plan." });
+        console.error("DEBUG: Failed in handleAssignPlan:", error);
+        toast({ variant: "destructive", title: "Error", description: error.message || "Failed to assign plan. See console for details." });
     } finally {
         setIsAssigning(false);
         setSelectedStudent(null);

@@ -2,79 +2,82 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
+    // Helper Functions
     function isSignedIn() {
       return request.auth != null;
     }
-
-    function isTrainer() {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'trainer';
-    }
-    
-    function isStudent() {
-        return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student';
-    }
-    
     function isOwner(userId) {
-        return request.auth.uid == userId;
+      return request.auth.uid == userId;
     }
-    
+    function getRole(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.role;
+    }
+    function isTrainer() {
+      return isSignedIn() && getRole(request.auth.uid) == 'trainer';
+    }
     function isAssignedTrainer(studentId) {
-        let studentDoc = get(/databases/$(database)/documents/users/$(studentId)).data;
-        return studentDoc.assignedTrainerId == request.auth.uid;
+      let studentDoc = get(/databases/$(database)/documents/users/$(studentId)).data;
+      return isSignedIn() && studentDoc.assignedTrainerId == request.auth.uid;
     }
 
-    // Collection: users
+    // USER COLLECTIONS
     match /users/{userId} {
-      allow create: if true; // Be cautious with this in production
+      allow create: if true;
       allow read, update: if isSignedIn() && (isOwner(userId) || isAssignedTrainer(userId));
-      allow list: if isTrainer() && request.query.where.path == "assignedTrainerId" && request.query.where.op == "==" && request.query.where.value == request.auth.uid;
       
-      match /private_details/{docId} {
-        allow read, write: if isSignedIn() && isOwner(userId);
-      }
-      
-      match /credit_transactions/{transactionId} {
-        allow read: if isSignedIn() && (isOwner(userId) || isAssignedTrainer(userId));
-        allow create: if isSignedIn(); // Allow logged-in users to create transactions
-      }
-    }
+      // This rule EXACTLY matches the query in /trainer/students/page.tsx
+      allow list: if isTrainer() && request.query.where.size() == 1 &&
+                   request.query.where[0][0] == 'assignedTrainerId' &&
+                   request.query.where[0][2] == request.auth.uid;
 
-    // Collection: tests
-    match /tests/{testId} {
-      allow create, update, delete: if isTrainer() && request.resource.data.trainerId == request.auth.uid;
-      allow read: if isSignedIn();
+      match /private_details/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /credit_transactions/{transactionId} {
+        allow create: if isSignedIn();
+        allow read: if isSignedIn() && (isOwner(userId) || isAssignedTrainer(userId));
+      }
     }
     
-    // Collection: submissions
+    // COLLECTION GROUP for sales dashboard
+    match /{path=**}/credit_transactions/{transactionId} {
+      allow read: if isTrainer() && resource.data.trainerId == request.auth.uid;
+    }
+
+    // TESTS COLLECTION
+    match /tests/{testId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isTrainer() && request.resource.data.trainerId == request.auth.uid;
+    }
+    
+    // SUBMISSIONS COLLECTION
     match /submissions/{submissionId} {
-      allow create: if isStudent();
-      allow read, update: if (isSignedIn() && (isOwner(resource.data.studentId) || isAssignedTrainer(resource.data.studentId)));
-      allow list: if isTrainer() && request.query.where.path == "trainerId" && request.query.where.op == "==" && request.query.where.value == request.auth.uid;
+      allow create: if isSignedIn() && getRole(request.auth.uid) == 'student';
+      allow read, update: if isSignedIn() && (isOwner(resource.data.studentId) || isAssignedTrainer(resource.data.studentId));
+      
+      // This rule EXACTLY matches the queries in /trainer/submissions/page.tsx
+      allow list: if isTrainer() && request.query.where[0][0] == 'trainerId' && 
+                   request.query.where[0][2] == request.auth.uid;
       
       match /feedback_thread/{messageId} {
-        allow read, create: if (isSignedIn() && (isOwner(get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId) || isAssignedTrainer(get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId)));
+        allow read, create: if isSignedIn() && (isOwner(get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId) || isAssignedTrainer(get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId));
         allow update, delete: if false;
       }
     }
     
-    // Collection: plans
+    // OTHER COLLECTIONS
     match /plans/{planId} {
-      allow create, update, delete: if isTrainer() && request.resource.data.trainerId == request.auth.uid;
       allow read: if isSignedIn();
+      allow create, update, delete: if isTrainer() && request.resource.data.trainerId == request.auth.uid;
     }
-    
-    // Collection: notifications
     match /notifications/{notificationId} {
-      allow create: if true; // Allow creation for the app
+      allow create: if isSignedIn();
       allow read, delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
-      allow list: if isSignedIn() && request.query.where.path == "recipientId" && request.query.where.op == "==" && request.query.where.value == request.auth.uid;
+      allow list: if isSignedIn() && request.query.where[0][0] == 'recipientId' && request.query.where[0][2] == request.auth.uid;
     }
-    
-    // Collection: email_queue
     match /email_queue/{emailId} {
-      allow create: if isSignedIn(); // Allow the app to queue emails
-      allow read, delete: if false; // Should only be handled by backend functions
+      allow create: if isSignedIn();
+      allow read, write, delete: if false;
     }
   }
 }

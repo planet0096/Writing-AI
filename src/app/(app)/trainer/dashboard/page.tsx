@@ -87,8 +87,8 @@ export default function TrainerDashboard() {
           setPaymentNotifications(notificationsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification)));
 
         } catch (error) {
-          console.error("Error fetching dashboard data:", error);
-          toast({ variant: 'destructive', title: 'Error', description: 'Could not load dashboard data.' });
+          console.error("DEBUG: Failed in fetchDashboardData:", error);
+          toast({ variant: 'destructive', title: 'Error', description: 'Could not load dashboard data. See console for details.' });
         } finally {
           setIsDataLoading(false);
         }
@@ -162,8 +162,8 @@ export default function TrainerDashboard() {
         setPaymentNotifications(prev => prev.filter(n => n.id !== notification.id));
         toast({ title: 'Success', description: `Credits assigned to ${notification.context.studentName}.` });
     } catch (error) {
-        console.error(error);
-        toast({ variant: 'destructive', title: 'Error', description: 'Failed to assign credits.' });
+        console.error("DEBUG: Failed in handleConfirmPayment:", error);
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to assign credits. See console for details.' });
     }
   };
 

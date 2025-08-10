@@ -14,6 +14,7 @@ import { DateRangePicker } from '@/components/date-range-picker';
 import { SalesDataTable } from '@/components/sales-data-table';
 import { DollarSign, Package, Users, ShoppingCart } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
 
 interface Sale {
     id: string;
@@ -38,6 +39,7 @@ const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088fe', '#00c49f'
 
 export default function SalesDashboardPage() {
     const { user, loading: authLoading } = useAuth();
+    const { toast } = useToast();
     const [sales, setSales] = useState<Sale[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -74,11 +76,12 @@ export default function SalesDashboardPage() {
             setSales(enrichedSales);
 
         } catch (error) {
-            console.error("Error fetching sales data: ", error);
+            console.error("DEBUG: Failed in fetchSales:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to load sales data. See console for details.' });
         } finally {
             setIsLoading(false);
         }
-    }, [user, dateRange]);
+    }, [user, dateRange, toast]);
 
 
     useEffect(() => {

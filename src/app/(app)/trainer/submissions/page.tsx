@@ -56,9 +56,10 @@ export default function TrainerSubmissionsPage() {
         const studentsSnapshot = await getDocs(studentsQuery);
         setStudents(studentsSnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name || `Student ${doc.id.substring(0,5)}` })));
       } catch (error) {
-        console.error("Error fetching students:", error);
+        console.error("DEBUG: Failed in fetchStudents:", error);
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to load students list. See console for details.' });
       }
-  }, [user]);
+  }, [user, toast]);
 
   const fetchSubmissions = useCallback(async (page = 1, lastVisible = null) => {
     if (!user) return;
@@ -135,8 +136,8 @@ export default function TrainerSubmissionsPage() {
       setSubmissions(filteredSubmissions as Submission[]);
 
     } catch (error) {
-      console.error("Error fetching submissions:", error);
-      toast({ variant: 'destructive', title: "Error", description: "Failed to load submissions."});
+      console.error("DEBUG: Failed in fetchSubmissions:", error);
+      toast({ variant: 'destructive', title: "Error", description: "Failed to load submissions. See console for details."});
     } finally {
       setIsLoading(false);
     }
