@@ -2,14 +2,10 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
+    
     // Helper Functions
     function isSignedIn() {
       return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return request.auth.uid == userId;
     }
     
     function isStudent() {
@@ -20,80 +16,73 @@ service cloud.firestore {
       return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'trainer';
     }
 
-    // Collection Group Rules
-    match /{path=**}/credit_transactions/{transactionId} {
-      allow read, write: if isTrainer();
-    }
-    
-    // User Management
+    // Users
     match /users/{userId} {
-      // Any signed-in user can create a user document (for signup).
-      allow create: if isSignedIn();
-
-      // Users can read/update their own document.
-      // Trainers can read/update their assigned students.
-      // Students can read their assigned trainer's document.
-      allow read, update: if isSignedIn();
-
-      // Users can list other users (e.g., trainers listing students).
-      allow list: if isSignedIn();
-    }
-    
-    // Student Submissions
-    match /submissions/{submissionId} {
-      // Anyone signed-in can read submissions (simplification for now).
+      // ANY signed in user can read ANY user's profile (less strict)
       allow read: if isSignedIn();
+      
+      // Users can only write to their own document
+      allow write: if isSignedIn() && request.auth.uid == userId;
 
-      // Students can create and update their own submissions.
-      // Trainers can update any submission (for feedback).
-      allow create, update: if isSignedIn();
-      
-      // Allow trainers and students to list submissions based on their roles.
-      allow list: if isSignedIn();
-      
-      // Feedback & Conversation Thread
-      match /feedback_thread/{messageId} {
-        allow read, create: if isSignedIn();
+      // Credit Transactions sub-collection
+      match /credit_transactions/{transactionId} {
+        // ANY signed in user can access ANY transaction history for now (less strict)
+        allow read, list: if isSignedIn();
+        // Students can't create their own transactions, only backend can
+        allow create: if false; 
       }
     }
-    
-    // Credit Transactions (Subcollection)
-    match /users/{userId}/credit_transactions/{transactionId} {
-      allow read, create: if isSignedIn();
-    }
 
-    // Private details (like API keys, email settings)
-    match /users/{userId}/private_details/{docId} {
-        allow read, write: if isOwner(userId);
-    }
-    
-    // Tests created by trainers
-    match /tests/{testId} {
-      // Any signed-in user can read tests.
+    // Submissions
+    match /submissions/{submissionId} {
+       // Trainers can list all submissions from their students, students can only list their own.
+      allow list: if (isTrainer() && resource.data.trainerId == request.auth.uid) || (isStudent() && resource.data.studentId == request.auth.uid);
+      // ANY signed in user can read ANY submission (less strict)
       allow read: if isSignedIn();
-      
-      // Trainers can create, update, and delete tests.
-      allow create, update, delete: if isTrainer();
+      // Students can create submissions
+      allow create: if isStudent();
+      // Students can update their own submissions (e.g. to add evaluation type)
+      // Trainers can update submissions of their students (e.g. to add feedback)
+      allow update: if (isStudent() && request.auth.uid == resource.data.studentId) || (isTrainer() && request.auth.uid == resource.data.trainerId);
+
+      // Feedback Thread sub-collection
+      match /feedback_thread/{messageId} {
+         // Allow read/write for associated student or trainer
+        allow read, write: if isSignedIn() && (request.auth.uid == resource.data.studentId || request.auth.uid == resource.data.trainerId);
+      }
     }
 
-    // Credit plans created by trainers
+    // Tests
+    match /tests/{testId} {
+      // ANY signed in user can read ANY test (less strict)
+      allow read: if isSignedIn();
+      // Only trainers can manage tests
+      allow write: if isTrainer();
+    }
+    
+    // Plans
     match /plans/{planId} {
-        // Any signed-in user can read plans.
-        allow read: if isSignedIn();
-
-        // Trainers can manage their own plans.
-        allow create, update, delete: if isTrainer() && request.resource.data.trainerId == request.auth.uid;
+      // ANY signed in user can read ANY plan (less strict)
+      allow read: if isSignedIn();
+      // Only trainers can manage plans
+      allow write: if isTrainer();
     }
     
-    // Email queue for sending emails
-    match /email_queue/{emailId} {
-      allow create: if isSignedIn(); 
-    }
-    
-    // Notifications for trainers/students
+    // Notifications
     match /notifications/{notificationId} {
-        allow read, create, delete, update: if isSignedIn();
-        allow list: if isSignedIn();
+      // Users can only read/list their own notifications
+      allow read, list: if isSignedIn() && request.auth.uid == resource.data.recipientId;
+    }
+    
+    // Email Queue - only backend access
+     match /email_queue/{emailId} {
+      allow read, write: if false;
+    }
+
+    // Collection group query for sales data
+    match /{path=**}/credit_transactions/{transactionId} {
+      // Trainers can query transactions where their ID is present
+      allow read, list: if isTrainer() && resource.data.trainerId == request.auth.uid;
     }
   }
 }
