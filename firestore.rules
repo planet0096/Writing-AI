@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -29,15 +30,15 @@ service cloud.firestore {
       // Anyone can create a user account (signup)
       allow create: if true;
       
-      // Trainers can list their own students. This rule is what fixes the dashboard query.
-      allow list: if isTrainer() && request.query.where.get('assignedTrainerId') == request.auth.uid;
-      
       // Users can only read/update their own profile
+      allow read, update: if isSignedIn() && isOwner(userId);
+      
       // Trainers can read their assigned students' data
-      allow read: if isSignedIn() && (isOwner(userId) || isAssignedTrainer(userId));
-
-      allow update: if (isSignedIn() && isOwner(userId)) || 
-                     (isTrainer() && isAssignedTrainer(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['credits', 'currentPlan', 'accountStatus', 'assignedTrainerId']));
+      // Trainers can list users, but only if they are querying for their own students.
+      allow list: if isTrainer() && request.query.where.assignedTrainerId == request.auth.uid;
+      
+      // A trainer can update a student's credits if they are assigned
+      allow update: if isTrainer() && isAssignedTrainer(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['credits', 'currentPlan', 'accountStatus']);
 
       // Private subcollections for settings
       match /private_details/{docId} {
@@ -61,9 +62,8 @@ service cloud.firestore {
 
     // Collection: tests
     match /tests/{testId} {
-        // Only trainers can create/update/delete tests that they own
-        allow create: if isTrainer();
-        allow update, delete: if isTrainer() && resource.data.trainerId == request.auth.uid;
+        // Only trainers can create/update/delete tests
+        allow create, update, delete: if isTrainer();
         
         // Any signed-in user can read tests
         allow read: if isSignedIn();
@@ -76,10 +76,13 @@ service cloud.firestore {
         
         // Only the student who made it or their assigned trainer can read/update it
         allow read, update: if (isSignedIn() && (isOwner(resource.data.studentId) || isAssignedTrainer(resource.data.studentId)));
+
+        // Trainers can list submissions, but only if they are querying for their own submissions.
+        allow list: if isTrainer() && request.query.where.trainerId == request.auth.uid;
         
         // Feedback subcollection
         match /feedback_thread/{messageId} {
-             allow read, create: if (isSignedIn() && isOwner(resource.data.studentId)) || (isTrainer() && isAssignedTrainer(get(/databases/$(database)/documents/submissions/$(submissionId)).data.studentId));
+             allow read, create: if (isSignedIn() && (isOwner(resource.data.studentId) || isAssignedTrainer(resource.data.studentId)));
              allow update, delete: if false; // Don't allow editing messages
         }
     }
@@ -87,7 +90,7 @@ service cloud.firestore {
     // Collection: plans
     match /plans/{planId} {
         // Trainers can manage their own plans
-        allow create, update, delete: if isTrainer() && resource.data.trainerId == request.auth.uid;
+        allow create, update, delete: if isTrainer() && request.resource.data.trainerId == request.auth.uid;
         
         // All signed-in users can read plans
         allow read: if isSignedIn();
@@ -95,10 +98,13 @@ service cloud.firestore {
     
     // Collection: notifications
     match /notifications/{notificationId} {
-        // Only backend can create
-        allow create: if false; 
+        // Trainers can list their own notifications
+        allow list: if isTrainer() && request.query.where.recipientId == request.auth.uid;
+
         // Only the recipient can read/delete
         allow read, delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+        // Only backend can create
+        allow create: if false; 
     }
     
     // Collection: email_queue
